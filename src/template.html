@@ -36,6 +36,12 @@ button,select{font:inherit;color:inherit}
 .topbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:8px;font-weight:600;margin-right:8px;white-space:nowrap;cursor:pointer}
 .brand .logo{width:24px;height:24px;border-radius:6px;display:block}
+.brand .ver{font-weight:400;font-size:11.5px;color:var(--muted);margin-left:-2px}
+#notice{display:none;align-items:center;gap:10px;padding:6px 12px;font-size:12.5px;background:#fff7e0;color:#7a4b00;border-bottom:1px solid #f1d58a}
+[data-theme="dark"] #notice{background:#3a2e12;color:#fbd88a;border-color:#6b5320}
+#notice.show{display:flex}
+#notice .grow{flex:1}
+#notice button{border:1px solid currentColor;background:transparent;border-radius:5px;padding:2px 8px;cursor:pointer;font-size:12px}
 #about{border:0;border-radius:14px;padding:0;background:var(--panel);color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.35);max-width:420px;width:calc(100vw - 40px)}
 #about::backdrop{background:rgba(0,0,0,.45)}
 #about .ab{padding:22px 24px 18px}
@@ -59,6 +65,7 @@ button,select{font:inherit;color:inherit}
 .sep{width:1px;height:22px;background:var(--border);margin:0 4px}
 @media (max-width:1560px){ .btn kbd{display:none} }
 @media (max-width:1100px){ .brand span+span{display:none} }
+
 .grow{flex:1}
 .filename{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;max-width:36vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .filename b{color:var(--text);font-weight:600}
@@ -159,7 +166,7 @@ body.dragging #drop{display:flex}
 </head>
 <body>
 <header class="topbar">
-  <div class="brand" id="brand" title="O aplikaci"><img class="logo" src="/*__ICON_URI__*/" alt=""><span>HTML &amp; JSON editor</span></div>
+  <div class="brand" id="brand" title="O aplikaci"><img class="logo" src="/*__ICON_URI__*/" alt=""><span>HTML &amp; JSON editor</span><span class="ver">v/*__VERSION__*/</span></div>
   <div class="menu" id="newMenu">
     <button class="btn" id="btnNew">Nový ▾</button>
     <div class="dd">
@@ -203,6 +210,7 @@ body.dragging #drop{display:flex}
   <div class="grow"></div>
   <div class="filename"><span class="dot" id="dirtyDot"></span><b id="fileName">bez názvu.html</b></div>
 </header>
+<div id="notice"><span id="noticeText"></span><span class="grow"></span><button id="noticeClose">Rozumím</button></div>
 
 <main id="main">
   <div id="editorPane"><textarea id="code"></textarea></div>
@@ -929,7 +937,7 @@ async function saveFileAs(){
     }catch(e){ if(e&&e.name!=='AbortError') toast('Uložení se nezdařilo: '+e.message, 4000); }
   } else {
     const name=prompt('Název souboru ke stažení:', suggestedName()); if(!name) return;
-    downloadFile(text,name); setFileName(name); state.savedText=text; setDirty(false); toast('Soubor byl stažen do složky Stažené');
+    downloadFile(text,name); setFileName(name); state.savedText=text; setDirty(false); toast('Soubor „'+name+'“ byl stažen (složka Stažené, případně dle dotazu prohlížeče)',3500);
   }
 }
 function newDoc(kind){
@@ -1128,7 +1136,16 @@ console.log('HTML & JSON editor v'+APP_VERSION+' – © 2026 Jindřich Hegmon');
   if(localStorage.getItem(LS.wrap)==='1'){ cm.setOption('lineWrapping',true); $('#btnWrap').classList.add('active'); }
   const tab=+(localStorage.getItem(LS.tab)||2); cm.setOption('indentUnit',tab); cm.setOption('tabSize',tab); $('#tabSel').value=String(tab);
   if(!isMac) document.querySelectorAll('kbd').forEach(k=>k.textContent=k.textContent.replace('⌘','Ctrl+').replace('⇧','Shift+'));
-  $('#stSaveMode').textContent = hasFS ? 'Ukládání: přímo na disk' : 'Ukládání: stažením souboru (přímý zápis podporuje Chrome/Edge)';
+  $('#stSaveMode').textContent = hasFS ? 'Ukládání: přímo na disk' : 'Ukládání: stažením souboru';
+  if(!hasFS){
+    const ua=navigator.userAgent; const isSafari=/Safari/.test(ua)&&!/Chrome|Chromium|Edg/.test(ua); const isFF=/Firefox/.test(ua);
+    const bn=isSafari?'Safari':(isFF?'Firefox':'Tento prohlížeč');
+    $('#noticeText').textContent=bn+' neumí zapisovat přímo na disk: „Uložit“ i „Uložit jako…“ soubor stáhnou do složky Stažené'+(isSafari?' (v Safari › Nastavení › Obecné lze zvolit „Umístění stahovaných souborů: Zeptat se u každého stahování“, pak se Safari ptá na složku)':'')+'. Výběr složky, přímé přepsání souboru a seznam nedávných souborů fungují v Chromu, Edge nebo Opeře.';
+    if(sessionStorage.getItem('hje:noticeHidden')!=='1') $('#notice').classList.add('show');
+    $('#noticeClose').onclick=()=>{ $('#notice').classList.remove('show'); try{ sessionStorage.setItem('hje:noticeHidden','1'); }catch(e){} cm.refresh(); };
+    $('#btnDir').parentElement.style.display='none';
+    $('#btnSaveAs').title='Uložit jako… – v tomto prohlížeči se soubor stáhne do složky Stažené';
+  }
   if(!hasFS) $('#btnRecent').parentElement.style.display='none';
   loadSavedDir();
 
