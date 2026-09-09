@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML & JSON editor</title>
+<style>
+/*__CM_CSS__*/
+</style>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --panel2:#eef0f4; --border:#d8dce3; --text:#1f2430; --muted:#6b7280;
+  --accent:#2563eb; --accent-text:#ffffff; --danger:#dc2626; --warn:#d97706; --ok:#16a34a;
+  --ed-bg:#ffffff; --ed-gutter:#f3f4f6; --ed-gutter-text:#9aa3b2; --ed-line:#f0f4ff; --ed-sel:#dbeafe; --ed-cursor:#1f2430;
+  --tk-tag:#1d4ed8; --tk-bracket:#6b7280; --tk-attr:#b45309; --tk-string:#15803d; --tk-number:#7c3aed; --tk-atom:#0e7490;
+  --tk-property:#0f766e; --tk-comment:#8a929e; --tk-keyword:#9333ea; --tk-meta:#6d28d9; --tk-error:#dc2626; --tk-def:#1d4ed8; --tk-var:#1f2430; --tk-builtin:#0369a1;
+  --err-line:rgba(220,38,38,.08); --warn-line:rgba(217,119,6,.10);
+}
+[data-theme="dark"]{
+  --bg:#0f1218; --panel:#161a22; --panel2:#1d222c; --border:#2a313d; --text:#e6e9ef; --muted:#8d95a3;
+  --accent:#3b82f6; --accent-text:#ffffff; --danger:#f87171; --warn:#fbbf24; --ok:#4ade80;
+  --ed-bg:#0f1218; --ed-gutter:#141821; --ed-gutter-text:#5b6473; --ed-line:#171c27; --ed-sel:#1e3a5f; --ed-cursor:#e6e9ef;
+  --tk-tag:#7dd3fc; --tk-bracket:#8d95a3; --tk-attr:#fbbf24; --tk-string:#86efac; --tk-number:#c4b5fd; --tk-atom:#67e8f9;
+  --tk-property:#5eead4; --tk-comment:#6b7280; --tk-keyword:#d8b4fe; --tk-meta:#a78bfa; --tk-error:#f87171; --tk-def:#93c5fd; --tk-var:#e6e9ef; --tk-builtin:#7dd3fc;
+  --err-line:rgba(248,113,113,.12); --warn-line:rgba(251,191,36,.12);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden}
+button,select{font:inherit;color:inherit}
+.topbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;margin-right:8px;white-space:nowrap}
+.brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.btn{border:1px solid var(--border);background:var(--panel2);border-radius:6px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;line-height:1.2}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.btn.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn kbd{font:11px/1 ui-monospace,Menlo,monospace;opacity:.65;border:1px solid currentColor;border-radius:3px;padding:1px 3px}
+.sep{width:1px;height:22px;background:var(--border);margin:0 4px}
+@media (max-width:1560px){ .btn kbd{display:none} }
+@media (max-width:1100px){ .brand span+span{display:none} }
+.grow{flex:1}
+.filename{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;max-width:36vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filename b{color:var(--text);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--warn);display:none}
+.dot.on{display:inline-block}
+select.sel{border:1px solid var(--border);background:var(--panel2);border-radius:6px;padding:4px 6px}
+.menu{position:relative}
+.menu .dd{display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:220px;z-index:50;padding:4px}
+.menu.open .dd{display:block}
+.dd button{display:block;width:100%;text-align:left;background:none;border:0;padding:7px 10px;border-radius:5px;cursor:pointer}
+.dd button:hover{background:var(--panel2)}
+.dd .hint{font-size:11.5px;color:var(--muted);padding:4px 10px 6px}
+.dd .empty{padding:8px 10px;color:var(--muted);font-size:13px}
+main{flex:1;display:flex;min-height:0;position:relative}
+#editorPane{flex:1;min-width:200px;display:flex;flex-direction:column;min-height:0}
+#editorPane .CodeMirror{flex:1;height:auto;font:13.5px/1.5 ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+#splitter{width:6px;cursor:col-resize;background:var(--border);display:none}
+#splitter:hover{background:var(--accent)}
+#previewPane{width:45%;min-width:200px;display:none;flex-direction:column;background:var(--panel);border-left:1px solid var(--border)}
+body.preview-on #splitter,body.preview-on #previewPane{display:flex}
+.preview-head{display:flex;align-items:center;gap:6px;padding:4px 8px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--muted);background:var(--panel2)}
+.preview-head .btn{padding:3px 8px;font-size:12px}
+#preview{flex:1;border:0;background:#fff;width:100%}
+#problems{border-top:1px solid var(--border);background:var(--panel);max-height:34vh;display:flex;flex-direction:column}
+#problems .ph{display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;user-select:none;font-size:12.5px;color:var(--muted)}
+#problems .ph .cnt{font-weight:600}
+#problems .ph .cnt.err{color:var(--danger)}
+#problems .ph .cnt.warn{color:var(--warn)}
+#problems .ph .cnt.ok{color:var(--ok)}
+#problems .ph .chev{margin-left:auto;transition:transform .15s}
+#problems.collapsed .chev{transform:rotate(-90deg)}
+#problems ul{list-style:none;margin:0;padding:0 0 4px;overflow:auto;font-size:13px}
+#problems.collapsed ul{display:none}
+#problems li{display:flex;gap:10px;padding:4px 12px;cursor:pointer;align-items:baseline}
+#problems li:hover{background:var(--panel2)}
+#problems li .sev{width:8px;height:8px;border-radius:50%;flex:none;position:relative;top:-1px}
+#problems li.error .sev{background:var(--danger)}
+#problems li.warning .sev{background:var(--warn)}
+#problems li .loc{color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:12px;flex:none;width:90px}
+.status{display:flex;gap:14px;align-items:center;padding:3px 12px;background:var(--panel2);border-top:1px solid var(--border);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.status .ok{color:var(--ok)} .status .err{color:var(--danger)} .status .warn{color:var(--warn)}
+.status .grow{flex:1}
+#toast{position:fixed;right:16px;bottom:44px;background:var(--text);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:100;max-width:60vw}
+#toast.show{opacity:1;transform:none}
+#drop{position:absolute;inset:0;background:rgba(37,99,235,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:20px;color:var(--accent);z-index:40;pointer-events:none}
+body.dragging #drop{display:flex}
+
+/* ---- CodeMirror theme "hje" ---- */
+.cm-s-hje.CodeMirror{background:var(--ed-bg);color:var(--text)}
+.cm-s-hje .CodeMirror-gutters{background:var(--ed-gutter);border-right:1px solid var(--border)}
+.cm-s-hje .CodeMirror-linenumber{color:var(--ed-gutter-text)}
+.cm-s-hje .CodeMirror-cursor{border-left:2px solid var(--ed-cursor)}
+.cm-s-hje .CodeMirror-activeline-background{background:var(--ed-line)}
+.cm-s-hje .CodeMirror-selected,.cm-s-hje .CodeMirror-focused .CodeMirror-selected{background:var(--ed-sel)}
+.cm-s-hje .CodeMirror-matchingbracket{color:var(--accent)!important;font-weight:700;text-decoration:underline}
+.cm-s-hje .CodeMirror-matchingtag{background:rgba(37,99,235,.15)}
+.cm-s-hje .cm-tag{color:var(--tk-tag)}
+.cm-s-hje .cm-tag.cm-bracket{color:var(--tk-bracket)}
+.cm-s-hje .cm-attribute{color:var(--tk-attr)}
+.cm-s-hje .cm-string{color:var(--tk-string)}
+.cm-s-hje .cm-string-2{color:var(--tk-string)}
+.cm-s-hje .cm-number{color:var(--tk-number)}
+.cm-s-hje .cm-atom{color:var(--tk-atom);font-weight:600}
+.cm-s-hje .cm-property{color:var(--tk-property)}
+.cm-s-hje .cm-comment{color:var(--tk-comment);font-style:italic}
+.cm-s-hje .cm-keyword{color:var(--tk-keyword)}
+.cm-s-hje .cm-meta{color:var(--tk-meta)}
+.cm-s-hje .cm-def{color:var(--tk-def)}
+.cm-s-hje .cm-variable,.cm-s-hje .cm-variable-2{color:var(--tk-var)}
+.cm-s-hje .cm-builtin,.cm-s-hje .cm-qualifier{color:var(--tk-builtin)}
+.cm-s-hje .cm-operator{color:var(--tk-bracket)}
+.cm-s-hje .cm-error{color:var(--tk-error);text-decoration:underline wavy}
+.cm-s-hje .cm-invalidchar{color:var(--tk-error)}
+.cm-s-hje .line-error{background:var(--err-line)}
+.cm-s-hje .line-warning{background:var(--warn-line)}
+.cm-s-hje .CodeMirror-lint-mark-error{background-image:none;text-decoration:underline wavy var(--danger);text-decoration-skip-ink:none}
+.cm-s-hje .CodeMirror-lint-mark-warning{background-image:none;text-decoration:underline wavy var(--warn);text-decoration-skip-ink:none}
+.CodeMirror-lint-tooltip{font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px}
+.cm-s-hje .CodeMirror-dialog{background:var(--panel2);border-bottom:1px solid var(--border)}
+.cm-s-hje .CodeMirror-dialog input{font:inherit;color:inherit;background:var(--ed-bg);border:1px solid var(--border);border-radius:4px;padding:2px 6px}
+.cm-s-hje .CodeMirror-foldmarker{color:var(--accent);text-shadow:none;font-family:inherit}
+.cm-s-hje .CodeMirror-foldgutter-open,.cm-s-hje .CodeMirror-foldgutter-folded{color:var(--ed-gutter-text)}
+.cm-s-hje .CodeMirror-lint-marker-error,.cm-s-hje .CodeMirror-lint-marker-warning{background-image:none;border-radius:50%;width:9px;height:9px;position:relative;top:1px}
+.cm-s-hje .CodeMirror-lint-marker-error{background:var(--danger)}
+.cm-s-hje .CodeMirror-lint-marker-warning{background:var(--warn)}
+.cm-s-hje .CodeMirror-lint-marker-multiple{background-image:none}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">&lt;/&gt;</span><span>HTML &amp; JSON editor</span></div>
+  <div class="menu" id="newMenu">
+    <button class="btn" id="btnNew">Nový ▾</button>
+    <div class="dd">
+      <button data-new="html">Nový HTML dokument</button>
+      <button data-new="json">Nový JSON dokument</button>
+      <button data-new="empty">Prázdný soubor</button>
+    </div>
+  </div>
+  <button class="btn" id="btnOpen" title="Otevřít soubor z disku (⌘O / Ctrl+O)">Otevřít <kbd>⌘O</kbd></button>
+  <div class="menu" id="recentMenu">
+    <button class="btn" id="btnRecent">Nedávné ▾</button>
+    <div class="dd" id="recentList"></div>
+  </div>
+  <button class="btn primary" id="btnSave" title="Uložit (⌘S / Ctrl+S)">Uložit <kbd>⌘S</kbd></button>
+  <button class="btn" id="btnSaveAs" title="Uložit jako… (⇧⌘S / Ctrl+Shift+S)">Uložit jako…</button>
+  <div class="sep"></div>
+  <select class="sel" id="modeSel" title="Typ dokumentu">
+    <option value="html">HTML</option>
+    <option value="json">JSON</option>
+  </select>
+  <button class="btn" id="btnFormat" title="Zformátovat / odsadit dokument">Formátovat <kbd>⇧⌘F</kbd></button>
+  <button class="btn" id="btnMinify" title="Zhustit JSON na jeden řádek">Minifikovat</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnPreview" title="Zobrazit živý náhled HTML">Náhled <kbd>⌘E</kbd></button>
+  <button class="btn" id="btnWrap" title="Zalamovat dlouhé řádky">Zalamovat</button>
+  <select class="sel" id="tabSel" title="Šířka odsazení">
+    <option value="2">Odsazení 2</option>
+    <option value="4">Odsazení 4</option>
+  </select>
+  <button class="btn" id="btnTheme" title="Světlý / tmavý motiv">☾</button>
+  <div class="grow"></div>
+  <div class="filename"><span class="dot" id="dirtyDot"></span><b id="fileName">bez názvu.html</b></div>
+</header>
+
+<main id="main">
+  <div id="editorPane"><textarea id="code"></textarea></div>
+  <div id="splitter"></div>
+  <div id="previewPane">
+    <div class="preview-head">
+      <span>Živý náhled</span>
+      <span class="grow"></span>
+      <button class="btn" id="btnPreviewRefresh" title="Znovu načíst náhled">Obnovit</button>
+      <button class="btn" id="btnPreviewWindow" title="Otevřít náhled v novém okně / záložce">Nové okno</button>
+    </div>
+    <iframe id="preview" sandbox="allow-scripts allow-forms allow-modals allow-popups" title="Náhled"></iframe>
+  </div>
+  <div id="drop">Pusťte soubor pro otevření</div>
+</main>
+
+<section id="problems" class="collapsed">
+  <div class="ph" id="problemsHead"><span>Problémy</span><span class="cnt ok" id="problemsCount">žádné</span><span class="chev">▾</span></div>
+  <ul id="problemsList"></ul>
+</section>
+
+<footer class="status">
+  <span id="stPos">Ř 1, Sl 1</span>
+  <span id="stMode">HTML</span>
+  <span id="stSize">0 řádků</span>
+  <span id="stLint" class="ok">✔ Bez chyb</span>
+  <span class="grow"></span>
+  <span id="stSaveMode"></span>
+</footer>
+
+<input type="file" id="fileInput" hidden accept=".html,.htm,.xhtml,.json,.txt,.xml,.svg,.js,.css,.md">
+<div id="toast"></div>
+
+<script>
+/*__CM_JS__*/
+</script>
+<script>
+(function(){
+'use strict';
+
+/* ================= Nastavení / stav ================= */
+const $ = s => document.querySelector(s);
+const hasFS = typeof window.showOpenFilePicker === 'function';
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const LS = { theme:'hje:theme', wrap:'hje:wrap', tab:'hje:tab', draft:'hje:draft', preview:'hje:preview' };
+
+const state = {
+  mode: 'html',        // 'html' | 'json'
+  fileName: 'bez názvu.html',
+  handle: null,        // FileSystemFileHandle
+  savedText: '',       // obsah při posledním uložení/otevření
+  dirty: false,
+  lastAnnotations: [],
+  lineClasses: [],
+};
+
+const TEMPLATES = {
+  html: `<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nová stránka</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Ahoj světe</h1>
+  <p>Začněte psát…</p>
+</body>
+</html>
+`,
+  json: `{
+  "nazev": "Nový dokument",
+  "aktivni": true,
+  "pocet": 1,
+  "polozky": [
+    { "id": 1, "text": "první" },
+    { "id": 2, "text": "druhá" }
+  ]
+}
+`,
+  empty: ''
+};
+
+/* ================= Pomocné ================= */
+function toast(msg, ms){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'), ms||2200); }
+function debounce(fn, ms){ let t; return function(){ clearTimeout(t); const a=arguments; t=setTimeout(()=>fn.apply(null,a), ms); }; }
+function extOf(name){ const m=/\.([^.]+)$/.exec(name||''); return m? m[1].toLowerCase() : ''; }
+function guessMode(name, text){
+  const e=extOf(name);
+  if(e==='json') return 'json';
+  if(['html','htm','xhtml','svg','xml'].includes(e)) return 'html';
+  const t=(text||'').trimStart();
+  if(t.startsWith('{')||t.startsWith('[')) return 'json';
+  return 'html';
+}
+function plural(n, one, few, many){ return n===1?one:(n>=2&&n<=4?few:many); }
+function lineStartsOf(text){ const ls=[0]; for(let i=0;i<text.length;i++) if(text.charCodeAt(i)===10) ls.push(i+1); return ls; }
+function makePos(lineStarts){ return function(i){ let lo=0,hi=lineStarts.length-1; while(lo<hi){ const mid=(lo+hi+1)>>1; if(lineStarts[mid]<=i) lo=mid; else hi=mid-1; } return CodeMirror.Pos(lo, i-lineStarts[lo]); }; }
+
+/* ================= Kontrola JSON ================= */
+function lintJSON(text){
+  const out=[]; const n=text.length; let i=0;
+  if(!text.trim()) return out;
+  const pos=makePos(lineStartsOf(text));
+  const ann=(sev,a,b,msg)=>({severity:sev, from:pos(a), to:pos(Math.max(b,a+1)), message:msg});
+  const fail=(at,msg,len)=>{ throw {at, msg, len:len||1}; };
+  const isWs=c=>c===' '||c==='\t'||c==='\n'||c==='\r';
+  function ws(){
+    while(i<n){
+      const c=text[i];
+      if(isWs(c)) i++;
+      else if(c==='/'&&(text[i+1]==='/'||text[i+1]==='*')){
+        const s=i;
+        if(text[i+1]==='/'){ while(i<n&&text[i]!=='\n') i++; }
+        else { const e=text.indexOf('*/',i+2); i=e<0?n:e+2; }
+        out.push(ann('warning',s,i,'Komentáře nejsou ve standardním JSON povoleny'));
+      } else break;
+    }
+  }
+  function string(){
+    const s=i; i++;
+    while(i<n){
+      const c=text[i];
+      if(c==='"'){ i++; return text.slice(s+1,i-1); }
+      if(c==='\\'){
+        const e=text[i+1];
+        if(e===undefined) fail(i,'Neukončená escape sekvence');
+        if('"\\/bfnrt'.includes(e)) i+=2;
+        else if(e==='u'){ if(!/^[0-9a-fA-F]{4}$/.test(text.substr(i+2,4))) fail(i,'Neplatná sekvence \\uXXXX',6); i+=6; }
+        else fail(i,'Neplatná escape sekvence „\\'+e+'“',2);
+      }
+      else if(c==='\n') fail(s,'Neukončený řetězec (řetězec nesmí obsahovat zalomení řádku – použijte \\n)',i-s);
+      else if(c<' ') fail(i,'Řídicí znak v řetězci musí být escapován',1);
+      else i++;
+    }
+    fail(s,'Neukončený řetězec – chybí koncová uvozovka',n-s);
+  }
+  function number(){
+    const m=/^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/.exec(text.slice(i,i+64));
+    if(!m||!m[0]||m[0]==='-') fail(i,'Neplatné číslo',1);
+    const s=i; i+=m[0].length;
+    const c=text[i];
+    if(c!==undefined && /[\d.A-Za-z_]/.test(c)) fail(s,'Neplatné číslo (úvodní nuly, chybějící číslice za tečkou nebo nepovolené znaky)',i-s+1);
+  }
+  function value(depth){
+    ws();
+    if(i>=n) fail(i,'Neočekávaný konec dokumentu – chybí hodnota');
+    const c=text[i];
+    if(c==='{') return object(depth);
+    if(c==='[') return array(depth);
+    if(c==='"') return string();
+    if(c==='-'||(c>='0'&&c<='9')) return number();
+    if(text.startsWith('true',i)){ i+=4; return; }
+    if(text.startsWith('false',i)){ i+=5; return; }
+    if(text.startsWith('null',i)){ i+=4; return; }
+    if(c==="'") fail(i,'Řetězce musí být v dvojitých uvozovkách (")',1);
+    const m=/^[A-Za-z_$][\w$]*/.exec(text.slice(i,i+100));
+    if(m){
+      const w=m[0];
+      if(/^(True|False|Null|NULL|TRUE|FALSE|undefined|NaN|Infinity)$/.test(w)) fail(i,'„'+w+'“ není platná JSON hodnota (povoleno je pouze true, false, null)',w.length);
+      fail(i,'Neočekávaný identifikátor „'+w+'“ – text musí být v uvozovkách',w.length);
+    }
+    if(c===']'||c==='}') fail(i,'Neočekávaný znak „'+c+'“ – pravděpodobně přebývající čárka',1);
+    fail(i,'Neočekávaný znak „'+c+'“',1);
+  }
+  function object(depth){
+    const s=i; i++; ws();
+    if(text[i]==='}'){ i++; return; }
+    const keys=new Set();
+    for(;;){
+      ws();
+      if(i>=n) fail(s,'Neuzavřený objekt – chybí }',1);
+      if(text[i]!=='"'){
+        if(text[i]==='}') fail(i,'Přebývající čárka před }',1);
+        if(text[i]==="'") fail(i,'Klíč musí být v dvojitých uvozovkách (")',1);
+        const m=/^[A-Za-z_$][\w$]*/.exec(text.slice(i,i+100));
+        if(m) fail(i,'Klíč „'+m[0]+'“ musí být v uvozovkách',m[0].length);
+        fail(i,'Očekáván klíč v uvozovkách',1);
+      }
+      const ks=i; const key=string();
+      if(keys.has(key)) out.push(ann('warning',ks,i,'Duplicitní klíč „'+key+'“')); keys.add(key);
+      ws();
+      if(text[i]!==':') fail(i<n?i:ks,'Za klíčem „'+key+'“ chybí dvojtečka',1);
+      i++;
+      value(depth+1); ws();
+      if(text[i]===','){ i++; continue; }
+      if(text[i]==='}'){ i++; return; }
+      if(i>=n) fail(s,'Neuzavřený objekt – chybí }',1);
+      fail(i,'Očekávána čárka nebo } – pravděpodobně chybí čárka mezi položkami',1);
+    }
+  }
+  function array(depth){
+    const s=i; i++; ws();
+    if(text[i]===']'){ i++; return; }
+    for(;;){
+      ws();
+      if(text[i]===']') fail(i,'Přebývající čárka před ]',1);
+      value(depth+1); ws();
+      if(text[i]===','){ i++; continue; }
+      if(text[i]===']'){ i++; return; }
+      if(i>=n) fail(s,'Neuzavřené pole – chybí ]',1);
+      fail(i,'Očekávána čárka nebo ] – pravděpodobně chybí čárka mezi prvky',1);
+    }
+  }
+  try{
+    value(0); ws();
+    if(i<n) fail(i,'Přebývající text za koncem JSON dokumentu',Math.min(n-i,80));
+  }catch(e){
+    if(e&&typeof e.at==='number') out.push(ann('error',e.at,e.at+e.len,e.msg)); else throw e;
+  }
+  return out;
+}
+
+/* ================= Kontrola HTML ================= */
+const VOID = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
+const OPTIONAL_END = new Set(['li','dt','dd','p','option','optgroup','tr','td','th','thead','tbody','tfoot','colgroup','caption','head','body','html','rt','rp']);
+const RAW = new Set(['script','style','textarea','title']);
+const IMPLICIT = {
+  li:['li'], dt:['dt','dd'], dd:['dt','dd'], option:['option'], optgroup:['option','optgroup'],
+  tr:['td','th','tr'], td:['td','th'], th:['td','th'],
+  tbody:['td','th','tr','tbody','thead','tfoot'], thead:['td','th','tr','tbody','thead','tfoot'], tfoot:['td','th','tr','tbody','thead','tfoot'],
+  body:['head'],
+};
+const P_CLOSERS = new Set(['address','article','aside','blockquote','details','div','dl','fieldset','figcaption','figure','footer','form','h1','h2','h3','h4','h5','h6','header','hgroup','hr','main','menu','nav','ol','p','pre','section','table','ul']);
+
+function lintHTML(text){
+  const out=[]; const stack=[]; const n=text.length;
+  const pos=makePos(lineStartsOf(text));
+  const add=(sev,a,b,msg)=>out.push({severity:sev, from:pos(a), to:pos(Math.max(b,a+1)), message:msg});
+  const implicitClose=name=>{
+    const list=IMPLICIT[name];
+    if(list) while(stack.length && list.includes(stack[stack.length-1].name)) stack.pop();
+    if(P_CLOSERS.has(name) && stack.length && stack[stack.length-1].name==='p') stack.pop();
+  };
+  let i=0, sawDoctype=false, sawRoot=false;
+  while(i<n){
+    const lt=text.indexOf('<',i); if(lt<0) break;
+    if(text.startsWith('<!--',lt)){ const e=text.indexOf('-->',lt+4); if(e<0){ add('error',lt,lt+4,'Neukončený komentář – chybí -->'); break; } i=e+3; continue; }
+    if(text.startsWith('<![CDATA[',lt)){ const e=text.indexOf(']]>',lt); if(e<0){ add('error',lt,lt+9,'Neukončená sekce CDATA'); break; } i=e+3; continue; }
+    if(text[lt+1]==='!'||text[lt+1]==='?'){
+      const e=text.indexOf('>',lt); if(e<0){ add('error',lt,lt+2,'Neukončená deklarace'); break; }
+      if(/^<!doctype/i.test(text.slice(lt,lt+9))){ if(sawRoot||stack.length) add('warning',lt,e+1,'<!DOCTYPE> musí být úplně na začátku dokumentu'); sawDoctype=true; }
+      i=e+1; continue;
+    }
+    const isClose=text[lt+1]==='/';
+    const nameStart=lt+(isClose?2:1);
+    const nm=/^[A-Za-z][^\s\/>]*/.exec(text.slice(nameStart,nameStart+120));
+    if(!nm){ if(isClose) add('error',lt,lt+2,'Neplatný uzavírací tag'); i=lt+1; continue; }
+    const name=nm[0].toLowerCase();
+    let j=nameStart+nm[0].length;
+    const attrs=new Set(); let selfClosing=false, closed=false;
+    while(j<n){
+      while(j<n && /\s/.test(text[j])) j++;
+      if(j>=n) break;
+      const c=text[j];
+      if(c==='>'){ closed=true; j++; break; }
+      if(c==='/'){ if(text[j+1]==='>'){ selfClosing=true; closed=true; j+=2; break; } j++; continue; }
+      if(c==='<') break; // tag nebyl ukončen, začíná další
+      const am=/^[^\s=\/>"'<]+/.exec(text.slice(j,j+300));
+      if(!am){ add('error',j,j+1,'Neočekávaný znak „'+c+'“ v tagu <'+name+'>'); j++; continue; }
+      const aname=am[0].toLowerCase(); const astart=j; j+=am[0].length;
+      if(!isClose){ if(attrs.has(aname)) add('warning',astart,j,'Duplicitní atribut „'+aname+'“ v <'+name+'>'); attrs.add(aname); }
+      let k=j; while(k<n && /\s/.test(text[k])) k++;
+      if(text[k]==='='){
+        k++; while(k<n && /\s/.test(text[k])) k++;
+        const q=text[k];
+        if(q==='"'||q==="'"){
+          const e=text.indexOf(q,k+1);
+          const nl=text.indexOf('\n',k+1), gt=text.indexOf('>',k+1);
+          if(e<0 || (nl>=0 && e>nl && /<[A-Za-z\/!]/.test(text.slice(k+1,e)))){
+            // uvozovka chybí – zotavení: hodnota končí na nejbližším „>“ nebo konci řádku
+            add('error',k,k+1,'Neuzavřená uvozovka u atributu „'+aname+'“ v <'+name+'>');
+            if(gt>=0 && (nl<0 || gt<nl)){ j=gt; continue; }
+            closed=true; j=nl<0?n:nl; break;
+          }
+          j=e+1;
+        } else if(k>=n || text[k]==='>' || text[k]==='<'){ add('error',astart,k,'Chybí hodnota atributu „'+aname+'“'); j=k; }
+        else {
+          const vm=/^[^\s>]+/.exec(text.slice(k,k+2000));
+          if(vm){ if(/["'=<`]/.test(vm[0])) add('warning',k,k+vm[0].length,'Hodnota atributu „'+aname+'“ bez uvozovek obsahuje nepovolené znaky'); j=k+vm[0].length; } else j=k;
+        }
+      }
+    }
+    if(!closed){ add('error',lt,nameStart+nm[0].length,'Tag <'+(isClose?'/':'')+name+'> není ukončen znakem „>“'); i=j; continue; }
+    i=j;
+    if(isClose){
+      let idx=-1; for(let s=stack.length-1;s>=0;s--) if(stack[s].name===name){ idx=s; break; }
+      if(idx<0){ if(!VOID.has(name)) add('error',lt,j,'Uzavírací tag </'+name+'> nemá odpovídající otevírací tag'); else add('warning',lt,j,'Element <'+name+'> se neuzavírá (prázdný element)'); }
+      else {
+        for(let s=stack.length-1;s>idx;s--){ const el=stack[s]; if(!OPTIONAL_END.has(el.name)) add('error',el.start,el.end,'Element <'+el.name+'> není uzavřen – na řádku '+(pos(lt).line+1)+' přichází </'+name+'>'); }
+        stack.length=idx;
+      }
+    } else {
+      if(name==='html'||name==='head'||name==='body') sawRoot=true;
+      implicitClose(name);
+      if(VOID.has(name)||selfClosing) continue;
+      stack.push({name, start:lt, end:j});
+      if(RAW.has(name)){
+        const m=new RegExp('</'+name+'\\s*>','i').exec(text.slice(j));
+        if(!m){ add('error',lt,j,'Element <'+name+'> není uzavřen'); stack.pop(); i=n; }
+        else i=j+m.index;
+      }
+    }
+  }
+  for(const el of stack) if(!OPTIONAL_END.has(el.name)) add('error',el.start,el.end,'Element <'+el.name+'> není uzavřen do konce dokumentu');
+  if(sawRoot && !sawDoctype) add('warning',0,1,'Chybí deklarace <!DOCTYPE html> na začátku dokumentu');
+  return out;
+}
+
+/* ================= Formátování ================= */
+function reindentHTML(text, unit){
+  const lines=text.split('\n'); const out=[]; let depth=0; let raw=null;
+  const tagRe=/<!--|<\/?([A-Za-z][\w:-]*)(?:"[^"]*"|'[^']*'|[^'">])*>/g;
+  const ind=d=>unit.repeat(Math.max(0,d));
+  for(const line of lines){
+    const t=line.trim();
+    if(raw){
+      if(raw==='comment'){ out.push(line); if(t.includes('-->')) raw=null; continue; }
+      const closeRe=new RegExp('</'+raw+'\\s*>','i');
+      if(closeRe.test(t)){
+        depth--;
+        if((raw==='script'||raw==='style') && new RegExp('^</'+raw+'\\s*>','i').test(t)) out.push(ind(depth)+t); else out.push(line);
+        raw=null;
+      } else out.push(line);
+      continue;
+    }
+    if(!t){ out.push(''); continue; }
+    let delta=0; let m; tagRe.lastIndex=0;
+    const startsClose=/^<\/[A-Za-z]/.test(t);
+    while((m=tagRe.exec(t))){
+      if(m[0]==='<!--'){ const e=t.indexOf('-->',m.index+4); if(e<0){ raw='comment'; break; } tagRe.lastIndex=e+3; continue; }
+      const tag=m[1].toLowerCase(); const isClose=m[0][1]==='/'; const selfC=/\/>$/.test(m[0]);
+      if(isClose) delta--;
+      else if(!VOID.has(tag)&&!selfC){
+        delta++;
+        if(tag==='pre'||tag==='script'||tag==='style'||tag==='textarea'){
+          const rest=t.slice(m.index+m[0].length);
+          if(!new RegExp('</'+tag+'\\s*>','i').test(rest)){ raw=tag; break; }
+        }
+      }
+    }
+    out.push(ind(startsClose?depth-1:depth)+t);
+    depth=Math.max(0,depth+delta);
+  }
+  return out.join('\n');
+}
+
+/* ================= Editor ================= */
+const cm = CodeMirror.fromTextArea($('#code'), {
+  mode:'htmlmixed', theme:'hje', lineNumbers:true, lineWrapping:false,
+  indentUnit:2, tabSize:2, indentWithTabs:false,
+  matchBrackets:true, autoCloseBrackets:true, autoCloseTags:true, matchTags:{bothTags:true},
+  styleActiveLine:true, foldGutter:true,
+  gutters:['CodeMirror-lint-markers','CodeMirror-linenumbers','CodeMirror-foldgutter'],
+  lint:{ getAnnotations:txt=>state.mode==='json'?lintJSON(txt):lintHTML(txt), async:false, delay:250, onUpdateLinting:onLint },
+  extraKeys:{
+    'Tab':cmi=>{ if(cmi.somethingSelected()) cmi.indentSelection('add'); else cmi.replaceSelection(' '.repeat(cmi.getOption('indentUnit')),'end'); },
+    'Shift-Tab':'indentLess',
+    'Ctrl-/':'toggleComment','Cmd-/':'toggleComment',
+    'Ctrl-Q':cmi=>cmi.foldCode(cmi.getCursor()),
+    'Ctrl-J':'toMatchingTag','Cmd-J':'toMatchingTag',
+  }
+});
+
+function setMode(mode){
+  state.mode=mode;
+  cm.setOption('mode', mode==='json'? {name:'javascript', json:true} : 'htmlmixed');
+  cm.setOption('autoCloseTags', mode==='html');
+  $('#modeSel').value=mode;
+  $('#stMode').textContent=mode.toUpperCase();
+  $('#btnPreview').disabled = mode!=='html';
+  $('#btnMinify').disabled = mode!=='json';
+  $('#btnPreviewWindow').disabled = mode!=='html';
+  if(mode!=='html') document.body.classList.remove('preview-on'); else if(localStorage.getItem(LS.preview)==='1') document.body.classList.add('preview-on');
+  $('#btnPreview').classList.toggle('active', document.body.classList.contains('preview-on'));
+  updatePreview();
+  cm.performLint();
+}
+
+function setDirty(d){ state.dirty=d; $('#dirtyDot').classList.toggle('on',d); document.title=(d?'● ':'')+state.fileName+' – HTML & JSON editor'; if(!d){ try{ localStorage.removeItem(LS.draft); }catch(e){} } }
+function setFileName(name){ state.fileName=name; $('#fileName').textContent=name; setDirty(state.dirty); }
+
+function loadText(text, name, handle){
+  state.handle=handle||null;
+  setFileName(name);
+  cm.setValue(text);
+  cm.clearHistory();
+  state.savedText=text;
+  setDirty(false);
+  setMode(guessMode(name,text));
+  cm.focus();
+}
+
+/* ---- lint výsledky -> panel problémů + podbarvení řádků ---- */
+function onLint(annotations){
+  state.lineClasses.forEach(l=>{ cm.removeLineClass(l,'background','line-error'); cm.removeLineClass(l,'background','line-warning'); });
+  state.lineClasses=[];
+  const errs=annotations.filter(a=>a.severity==='error'), warns=annotations.filter(a=>a.severity!=='error');
+  annotations.forEach(a=>{ const l=a.from.line; if(l<cm.lineCount()){ cm.addLineClass(l,'background',a.severity==='error'?'line-error':'line-warning'); state.lineClasses.push(l); } });
+  const list=$('#problemsList'); list.innerHTML='';
+  annotations.slice().sort((a,b)=>a.from.line-b.from.line||a.from.ch-b.from.ch).forEach(a=>{
+    const li=document.createElement('li'); li.className=a.severity;
+    li.innerHTML='<span class="sev"></span><span class="loc">Ř '+(a.from.line+1)+', Sl '+(a.from.ch+1)+'</span><span></span>';
+    li.lastChild.textContent=a.message;
+    li.onclick=()=>{ cm.setCursor(a.from); cm.scrollIntoView(a.from,80); cm.focus(); };
+    list.appendChild(li);
+  });
+  const cnt=$('#problemsCount'); const st=$('#stLint');
+  if(!annotations.length){ cnt.textContent='žádné'; cnt.className='cnt ok'; st.textContent='✔ Bez chyb'; st.className='ok'; }
+  else {
+    const parts=[]; if(errs.length) parts.push(errs.length+' '+plural(errs.length,'chyba','chyby','chyb')); if(warns.length) parts.push(warns.length+' '+plural(warns.length,'varování','varování','varování'));
+    cnt.textContent=parts.join(', '); cnt.className='cnt '+(errs.length?'err':'warn');
+    st.textContent=(errs.length?'✖ ':'⚠ ')+parts.join(', '); st.className=errs.length?'err':'warn';
+  }
+  if(annotations.length && $('#problems').classList.contains('collapsed') && !$('#problems').dataset.userCollapsed) $('#problems').classList.remove('collapsed');
+  if(!annotations.length) $('#problems').classList.add('collapsed');
+}
+$('#problemsHead').onclick=()=>{ const p=$('#problems'); p.classList.toggle('collapsed'); p.dataset.userCollapsed=p.classList.contains('collapsed')?'1':''; };
+
+/* ---- stav ---- */
+cm.on('cursorActivity',()=>{ const c=cm.getCursor(); $('#stPos').textContent='Ř '+(c.line+1)+', Sl '+(c.ch+1)+(cm.somethingSelected()?' ('+cm.getSelection().length+' vybráno)':''); });
+const saveDraft=debounce(()=>{ if(!state.dirty) return; try{ localStorage.setItem(LS.draft, JSON.stringify({text:cm.getValue(), name:state.fileName, mode:state.mode, ts:Date.now()})); }catch(e){} }, 800);
+cm.on('change',()=>{
+  const v=cm.getValue();
+  setDirty(v!==state.savedText);
+  $('#stSize').textContent=cm.lineCount()+' '+plural(cm.lineCount(),'řádek','řádky','řádků')+', '+v.length.toLocaleString('cs-CZ')+' znaků';
+  schedulePreview(); saveDraft();
+});
+
+/* ================= Náhled ================= */
+function updatePreview(){
+  if(state.mode!=='html'||!document.body.classList.contains('preview-on')) return;
+  $('#preview').srcdoc=cm.getValue();
+}
+const schedulePreview=debounce(updatePreview, 400);
+function togglePreview(force){
+  if(state.mode!=='html') return;
+  const on = force===undefined ? !document.body.classList.contains('preview-on') : force;
+  document.body.classList.toggle('preview-on', on);
+  $('#btnPreview').classList.toggle('active', on);
+  localStorage.setItem(LS.preview, on?'1':'0');
+  updatePreview(); cm.refresh();
+}
+$('#btnPreview').onclick=()=>togglePreview();
+$('#btnPreviewRefresh').onclick=()=>{ $('#preview').srcdoc=''; setTimeout(updatePreview,20); };
+$('#btnPreviewWindow').onclick=()=>{ const url=URL.createObjectURL(new Blob([cm.getValue()],{type:'text/html'})); window.open(url,'_blank'); setTimeout(()=>URL.revokeObjectURL(url),60000); };
+
+/* splitter */
+(function(){ const sp=$('#splitter'), pp=$('#previewPane'); let drag=false;
+  sp.addEventListener('mousedown',e=>{ drag=true; e.preventDefault(); document.body.style.cursor='col-resize'; });
+  window.addEventListener('mousemove',e=>{ if(!drag) return; const r=$('#main').getBoundingClientRect(); const w=Math.min(Math.max(r.right-e.clientX,200), r.width-250); pp.style.width=w+'px'; });
+  window.addEventListener('mouseup',()=>{ if(drag){ drag=false; document.body.style.cursor=''; cm.refresh(); } });
+})();
+
+/* ================= Soubory ================= */
+const FILE_TYPES=[
+  {description:'HTML', accept:{'text/html':['.html','.htm']}},
+  {description:'JSON', accept:{'application/json':['.json']}},
+  {description:'Text', accept:{'text/plain':['.txt','.xml','.svg','.css','.js','.md']}},
+];
+function confirmDiscard(){ return !state.dirty || confirm('Dokument má neuložené změny. Zahodit je?'); }
+
+async function openFile(){
+  if(!confirmDiscard()) return;
+  if(hasFS){
+    try{
+      const [h]=await window.showOpenFilePicker({types:FILE_TYPES, multiple:false});
+      const f=await h.getFile(); const text=await f.text();
+      loadText(text, f.name, h); await addRecent(h); toast('Otevřeno: '+f.name);
+    }catch(e){ if(e&&e.name!=='AbortError') toast('Otevření se nezdařilo: '+e.message); }
+  } else $('#fileInput').click();
+}
+$('#fileInput').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  loadText(await f.text(), f.name, null); toast('Otevřeno: '+f.name); e.target.value='';
+});
+
+async function writeToHandle(h, text){ const w=await h.createWritable(); await w.write(text); await w.close(); }
+function downloadFile(text, name){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:state.mode==='json'?'application/json':'text/html'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); }
+function suggestedName(){ const e=extOf(state.fileName); const want=state.mode==='json'?'json':'html'; if(!e) return state.fileName+'.'+want; if((state.mode==='json')!==(e==='json') && state.fileName.startsWith('bez názvu')) return 'bez názvu.'+want; return state.fileName; }
+
+async function saveFile(){
+  const text=cm.getValue();
+  if(state.handle){
+    try{ await writeToHandle(state.handle,text); state.savedText=text; setDirty(false); toast('Uloženo: '+state.fileName); }
+    catch(e){ toast('Uložení se nezdařilo: '+e.message, 4000); }
+    return;
+  }
+  return saveFileAs();
+}
+async function saveFileAs(){
+  const text=cm.getValue();
+  if(hasFS){
+    try{
+      const h=await window.showSaveFilePicker({suggestedName:suggestedName(), types:FILE_TYPES});
+      await writeToHandle(h,text); state.handle=h; setFileName(h.name); state.savedText=text; setDirty(false); await addRecent(h); toast('Uloženo: '+h.name);
+    }catch(e){ if(e&&e.name!=='AbortError') toast('Uložení se nezdařilo: '+e.message, 4000); }
+  } else {
+    const name=prompt('Název souboru ke stažení:', suggestedName()); if(!name) return;
+    downloadFile(text,name); setFileName(name); state.savedText=text; setDirty(false); toast('Soubor byl stažen do složky Stažené');
+  }
+}
+function newDoc(kind){
+  if(!confirmDiscard()) return;
+  const mode=kind==='json'?'json':'html';
+  loadText(TEMPLATES[kind]||'', 'bez názvu.'+mode, null);
+  if(kind==='empty') setMode('html');
+}
+
+/* ---- nedávné soubory (IndexedDB, jen s File System Access API) ---- */
+const idb={
+  open(){ return new Promise((res,rej)=>{ const r=indexedDB.open('hje',1); r.onupgradeneeded=()=>r.result.createObjectStore('recent',{keyPath:'key'}); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); },
+  async all(){ const db=await this.open(); return new Promise((res,rej)=>{ const r=db.transaction('recent').objectStore('recent').getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); },
+  async put(v){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('recent','readwrite'); t.objectStore('recent').put(v); t.oncomplete=res; t.onerror=()=>rej(t.error); }); },
+  async del(k){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('recent','readwrite'); t.objectStore('recent').delete(k); t.oncomplete=res; t.onerror=()=>rej(t.error); }); },
+};
+async function addRecent(h){
+  if(!hasFS||!window.indexedDB) return;
+  try{
+    const all=await idb.all();
+    for(const r of all){ if(await h.isSameEntry(r.handle)) await idb.del(r.key); }
+    await idb.put({key:Date.now()+':'+h.name, name:h.name, handle:h, ts:Date.now()});
+    const rest=(await idb.all()).sort((a,b)=>b.ts-a.ts); for(const r of rest.slice(10)) await idb.del(r.key);
+    renderRecent();
+  }catch(e){}
+}
+async function renderRecent(){
+  const box=$('#recentList'); box.innerHTML='';
+  if(!hasFS||!window.indexedDB){ box.innerHTML='<div class="empty">Seznam nedávných souborů vyžaduje Chrome, Edge nebo Operu.</div>'; return; }
+  let all=[]; try{ all=(await idb.all()).sort((a,b)=>b.ts-a.ts); }catch(e){}
+  if(!all.length){ box.innerHTML='<div class="empty">Zatím žádné soubory.</div>'; return; }
+  all.forEach(r=>{
+    const b=document.createElement('button'); b.textContent=r.name; b.title=new Date(r.ts).toLocaleString('cs-CZ');
+    b.onclick=async()=>{
+      closeMenus(); if(!confirmDiscard()) return;
+      try{
+        let p=await r.handle.queryPermission({mode:'readwrite'});
+        if(p!=='granted') p=await r.handle.requestPermission({mode:'readwrite'});
+        if(p!=='granted'){ toast('Přístup k souboru nebyl povolen'); return; }
+        const f=await r.handle.getFile(); loadText(await f.text(), f.name, r.handle); await addRecent(r.handle); toast('Otevřeno: '+f.name);
+      }catch(e){ toast('Soubor se nepodařilo otevřít (byl smazán nebo přesunut?)',4000); try{ await idb.del(r.key); renderRecent(); }catch(_){} }
+    };
+    box.appendChild(b);
+  });
+  const clr=document.createElement('button'); clr.textContent='Vymazat seznam'; clr.style.color='var(--muted)';
+  clr.onclick=async()=>{ for(const r of all) await idb.del(r.key); renderRecent(); closeMenus(); };
+  box.appendChild(clr);
+}
+
+/* ---- drag & drop ---- */
+let dragDepth=0;
+document.addEventListener('dragenter',e=>{ if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){ dragDepth++; document.body.classList.add('dragging'); } });
+document.addEventListener('dragleave',()=>{ if(--dragDepth<=0){ dragDepth=0; document.body.classList.remove('dragging'); } });
+document.addEventListener('dragover',e=>{ if(document.body.classList.contains('dragging')) e.preventDefault(); });
+document.addEventListener('drop',async e=>{
+  dragDepth=0; document.body.classList.remove('dragging');
+  const items=e.dataTransfer&&e.dataTransfer.items; const files=e.dataTransfer&&e.dataTransfer.files;
+  if(!files||!files.length) return;
+  e.preventDefault(); e.stopPropagation();
+  if(!confirmDiscard()) return;
+  let handle=null;
+  try{ if(items&&items[0]&&items[0].getAsFileSystemHandle){ const h=await items[0].getAsFileSystemHandle(); if(h&&h.kind==='file') handle=h; } }catch(_){}
+  const f=files[0]; loadText(await f.text(), f.name, handle); if(handle) addRecent(handle); toast('Otevřeno: '+f.name);
+}, true);
+
+/* ================= Formátování – tlačítka ================= */
+function formatDoc(){
+  const unit=' '.repeat(cm.getOption('indentUnit'));
+  if(state.mode==='json'){
+    try{ const v=JSON.parse(cm.getValue()); replaceAll(JSON.stringify(v,null,unit)+'\n'); toast('JSON zformátován'); }
+    catch(e){ toast('Nelze formátovat – JSON obsahuje chyby (viz panel Problémy)',3500); }
+  } else { replaceAll(reindentHTML(cm.getValue(),unit)); toast('HTML odsazeno'); }
+}
+function minifyDoc(){
+  if(state.mode!=='json') return;
+  try{ replaceAll(JSON.stringify(JSON.parse(cm.getValue()))); toast('JSON minifikován'); }
+  catch(e){ toast('Nelze minifikovat – JSON obsahuje chyby',3500); }
+}
+function replaceAll(text){ const c=cm.getCursor(), s=cm.getScrollInfo(); cm.operation(()=>{ cm.setValue(text); cm.setCursor(c); cm.scrollTo(s.left,s.top); }); }
+
+/* ================= UI drátování ================= */
+function closeMenus(){ document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open')); }
+document.querySelectorAll('.menu > .btn').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const m=b.parentElement; const was=m.classList.contains('open'); closeMenus(); if(!was){ m.classList.add('open'); if(m.id==='recentMenu') renderRecent(); } }));
+document.addEventListener('click',closeMenus);
+document.querySelectorAll('[data-new]').forEach(b=>b.onclick=()=>{ closeMenus(); newDoc(b.dataset.new); });
+$('#btnOpen').onclick=openFile;
+$('#btnSave').onclick=saveFile;
+$('#btnSaveAs').onclick=saveFileAs;
+$('#btnFormat').onclick=formatDoc;
+$('#btnMinify').onclick=minifyDoc;
+$('#modeSel').onchange=e=>{ setMode(e.target.value); const ext=extOf(state.fileName); if(state.fileName.startsWith('bez názvu')) setFileName('bez názvu.'+state.mode); };
+$('#btnWrap').onclick=()=>{ const on=!cm.getOption('lineWrapping'); cm.setOption('lineWrapping',on); $('#btnWrap').classList.toggle('active',on); localStorage.setItem(LS.wrap,on?'1':'0'); };
+$('#tabSel').onchange=e=>{ const n=+e.target.value; cm.setOption('indentUnit',n); cm.setOption('tabSize',n); localStorage.setItem(LS.tab,String(n)); };
+function applyTheme(t){ document.documentElement.setAttribute('data-theme',t); $('#btnTheme').textContent=t==='dark'?'☀':'☾'; localStorage.setItem(LS.theme,t); }
+$('#btnTheme').onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
+
+document.addEventListener('keydown',e=>{
+  const mod=isMac?e.metaKey:e.ctrlKey; if(!mod) return;
+  const k=e.key.toLowerCase();
+  if(k==='s'){ e.preventDefault(); e.shiftKey?saveFileAs():saveFile(); }
+  else if(k==='o'){ e.preventDefault(); openFile(); }
+  else if(k==='e'){ e.preventDefault(); togglePreview(); }
+  else if(k==='f'&&e.shiftKey){ e.preventDefault(); formatDoc(); }
+});
+window.addEventListener('beforeunload',e=>{ if(state.dirty){ e.preventDefault(); e.returnValue=''; } });
+
+/* ================= Start ================= */
+(function init(){
+  const prefersDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(localStorage.getItem(LS.theme)||(prefersDark?'dark':'light'));
+  if(localStorage.getItem(LS.wrap)==='1'){ cm.setOption('lineWrapping',true); $('#btnWrap').classList.add('active'); }
+  const tab=+(localStorage.getItem(LS.tab)||2); cm.setOption('indentUnit',tab); cm.setOption('tabSize',tab); $('#tabSel').value=String(tab);
+  if(!isMac) document.querySelectorAll('kbd').forEach(k=>k.textContent=k.textContent.replace('⌘','Ctrl+').replace('⇧','Shift+'));
+  $('#stSaveMode').textContent = hasFS ? 'Ukládání: přímo na disk' : 'Ukládání: stažením souboru (přímý zápis podporuje Chrome/Edge)';
+  if(!hasFS) $('#btnRecent').parentElement.style.display='none';
+
+  let draft=null; try{ draft=JSON.parse(localStorage.getItem(LS.draft)||'null'); }catch(e){}
+  if(draft && draft.text && draft.text.trim()){
+    loadText(draft.text, draft.name||'bez názvu.html', null);
+    setMode(draft.mode||guessMode(draft.name,draft.text));
+    state.savedText=''; setDirty(true);
+    toast('Obnoven rozepsaný dokument z minulé relace ('+new Date(draft.ts).toLocaleString('cs-CZ')+')',3500);
+  } else newDoc('html');
+  if(localStorage.getItem(LS.preview)==='1' && state.mode==='html') togglePreview(true);
+  cm.refresh();
+})();
+})();
+</script>
+</body>
+</html>
