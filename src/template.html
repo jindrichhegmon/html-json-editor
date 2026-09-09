@@ -72,6 +72,12 @@ select.sel{border:1px solid var(--border);background:var(--panel2);border-radius
 .dd button:hover{background:var(--panel2)}
 .dd .hint{font-size:11.5px;color:var(--muted);padding:4px 10px 6px}
 .dd .empty{padding:8px 10px;color:var(--muted);font-size:13px}
+.dd .head{padding:6px 10px 4px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dd .head b{color:var(--text)}
+.dd .files{max-height:40vh;overflow:auto;border-top:1px solid var(--border);margin-top:4px;padding-top:4px}
+.dd button.file{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.dd button.strong{font-weight:600}
+.menu .dd.wide{min-width:300px}
 main{flex:1;display:flex;min-height:0;position:relative}
 #editorPane{flex:1;min-width:200px;display:flex;flex-direction:column;min-height:0}
 #editorPane .CodeMirror{flex:1;height:auto;font:13.5px/1.5 ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
@@ -171,7 +177,11 @@ body.dragging #drop{display:flex}
     <div class="dd" id="recentList"></div>
   </div>
   <button class="btn primary" id="btnSave" title="Uložit (⌘S / Ctrl+S)">Uložit <kbd>⌘S</kbd></button>
-  <button class="btn" id="btnSaveAs" title="Uložit jako… (⇧⌘S / Ctrl+Shift+S)">Uložit jako…</button>
+  <button class="btn" id="btnSaveAs" title="Uložit jako… – vyberete složku i název souboru (⇧⌘S / Ctrl+Shift+S)">Uložit jako…</button>
+  <div class="menu" id="dirMenu">
+    <button class="btn" id="btnDir" title="Pracovní složka na disku: uložit do ní nebo z ní otevřít">Složka ▾</button>
+    <div class="dd" id="dirList"></div>
+  </div>
   <div class="sep"></div>
   <select class="sel" id="modeSel" title="Typ dokumentu">
     <option value="html">HTML</option>
@@ -230,6 +240,7 @@ body.dragging #drop{display:flex}
     <p>Jednoduchý editor HTML, JSON, CSV, Python a prostého textu v jednom souboru: zvýraznění syntaxe, průběžná kontrola chyb, živý náhled HTML, ukládání přímo na disk. Funguje i offline.</p>
     <table>
       <tr><td>Otevřít / Uložit / Uložit jako</td><td><kbd>⌘O</kbd> <kbd>⌘S</kbd> <kbd>⇧⌘S</kbd></td></tr>
+      <tr><td>Uložit do pracovní složky</td><td><kbd>⇧⌘D</kbd></td></tr>
       <tr><td>Náhled HTML / Formátovat</td><td><kbd>⌘E</kbd> <kbd>⇧⌘F</kbd></td></tr>
       <tr><td>Hledat / Komentář / Párový tag</td><td><kbd>⌘F</kbd> <kbd>⌘/</kbd> <kbd>⌘J</kbd></td></tr>
     </table>
@@ -260,6 +271,7 @@ const state = {
   mode: 'html',        // 'html' | 'json'
   fileName: 'bez názvu.html',
   handle: null,        // FileSystemFileHandle
+  dirHandle: null,     // FileSystemDirectoryHandle – pracovní složka
   savedText: '',       // obsah při posledním uložení/otevření
   dirty: false,
   lastAnnotations: [],
@@ -910,7 +922,9 @@ async function saveFileAs(){
   const text=cm.getValue();
   if(hasFS){
     try{
-      const h=await window.showSaveFilePicker({suggestedName:suggestedName(), types:FILE_TYPES});
+      const opts={suggestedName:suggestedName(), types:FILE_TYPES};
+      if(state.handle) opts.startIn=state.handle; else if(state.dirHandle) opts.startIn=state.dirHandle;
+      const h=await window.showSaveFilePicker(opts);
       await writeToHandle(h,text); state.handle=h; setFileName(h.name); state.savedText=text; setDirty(false); await addRecent(h); toast('Uloženo: '+h.name);
     }catch(e){ if(e&&e.name!=='AbortError') toast('Uložení se nezdařilo: '+e.message, 4000); }
   } else {
@@ -935,17 +949,17 @@ const idb={
 async function addRecent(h){
   if(!hasFS||!window.indexedDB) return;
   try{
-    const all=await idb.all();
+    const all=(await idb.all()).filter(r=>r.key!=='__dir');
     for(const r of all){ if(await h.isSameEntry(r.handle)) await idb.del(r.key); }
     await idb.put({key:Date.now()+':'+h.name, name:h.name, handle:h, ts:Date.now()});
-    const rest=(await idb.all()).sort((a,b)=>b.ts-a.ts); for(const r of rest.slice(10)) await idb.del(r.key);
+    const rest=(await idb.all()).filter(r=>r.key!=='__dir').sort((a,b)=>b.ts-a.ts); for(const r of rest.slice(10)) await idb.del(r.key);
     renderRecent();
   }catch(e){}
 }
 async function renderRecent(){
   const box=$('#recentList'); box.innerHTML='';
   if(!hasFS||!window.indexedDB){ box.innerHTML='<div class="empty">Seznam nedávných souborů vyžaduje Chrome, Edge nebo Operu.</div>'; return; }
-  let all=[]; try{ all=(await idb.all()).sort((a,b)=>b.ts-a.ts); }catch(e){}
+  let all=[]; try{ all=(await idb.all()).filter(r=>r.key!=='__dir').sort((a,b)=>b.ts-a.ts); }catch(e){}
   if(!all.length){ box.innerHTML='<div class="empty">Zatím žádné soubory.</div>'; return; }
   all.forEach(r=>{
     const b=document.createElement('button'); b.textContent=r.name; b.title=new Date(r.ts).toLocaleString('cs-CZ');
@@ -963,6 +977,75 @@ async function renderRecent(){
   const clr=document.createElement('button'); clr.textContent='Vymazat seznam'; clr.style.color='var(--muted)';
   clr.onclick=async()=>{ for(const r of all) await idb.del(r.key); renderRecent(); closeMenus(); };
   box.appendChild(clr);
+}
+
+/* ---- pracovní složka (File System Access API) ---- */
+const EDITABLE_EXT=new Set(['html','htm','xhtml','json','txt','text','log','md','markdown','py','pyw','csv','tsv','xml','svg','js','css','ini','cfg','conf']);
+async function ensurePerm(h, mode){
+  let p=await h.queryPermission({mode}); if(p!=='granted') p=await h.requestPermission({mode}); return p==='granted';
+}
+async function pickDir(){
+  if(!window.showDirectoryPicker){ toast('Výběr složky podporuje jen Chrome, Edge nebo Opera'); return; }
+  try{
+    const opts={mode:'readwrite'}; if(state.dirHandle) opts.startIn=state.dirHandle;
+    const d=await window.showDirectoryPicker(opts);
+    state.dirHandle=d; try{ await idb.put({key:'__dir', name:d.name, handle:d, ts:Date.now()}); }catch(e){}
+    updateDirButton(); toast('Pracovní složka: '+d.name); renderDirMenu();
+  }catch(e){ if(e&&e.name!=='AbortError') toast('Složku se nepodařilo vybrat: '+e.message,4000); }
+}
+async function loadSavedDir(){
+  if(!hasFS||!window.indexedDB) return;
+  try{ const all=await idb.all(); const r=all.find(x=>x.key==='__dir'); if(r&&r.handle){ state.dirHandle=r.handle; } }catch(e){}
+  updateDirButton();
+}
+function updateDirButton(){ const b=$('#btnDir'); b.textContent=(state.dirHandle?'Složka: '+state.dirHandle.name:'Složka')+' ▾'; }
+async function saveToDir(askName){
+  const d=state.dirHandle; if(!d){ return pickDir(); }
+  if(!(await ensurePerm(d,'readwrite'))){ toast('Přístup ke složce nebyl povolen'); return; }
+  let name=state.fileName;
+  if(askName||name.startsWith('bez názvu')){ name=prompt('Název souboru ve složce „'+d.name+'“:', suggestedName()); if(!name) return; name=name.trim(); if(!name) return; }
+  let existing=null; try{ existing=await d.getFileHandle(name); }catch(e){}
+  if(existing){
+    const same = state.handle ? await existing.isSameEntry(state.handle).catch(()=>false) : false;
+    if(!same && !confirm('Soubor „'+name+'“ ve složce „'+d.name+'“ už existuje. Přepsat?')) return;
+  }
+  try{
+    const h=await d.getFileHandle(name,{create:true});
+    const text=cm.getValue(); await writeToHandle(h,text);
+    state.handle=h; setFileName(name); state.savedText=text; setDirty(false); await addRecent(h);
+    toast('Uloženo do složky '+d.name+': '+name);
+  }catch(e){ toast('Uložení se nezdařilo: '+e.message,4000); }
+}
+async function openFromDir(fh){
+  if(!confirmDiscard()) return;
+  try{ if(!(await ensurePerm(fh,'readwrite'))){ toast('Přístup k souboru nebyl povolen'); return; } const f=await fh.getFile(); loadText(await f.text(), f.name, fh); await addRecent(fh); toast('Otevřeno: '+f.name); }
+  catch(e){ toast('Soubor se nepodařilo otevřít: '+e.message,4000); }
+}
+async function renderDirMenu(){
+  const box=$('#dirList'); box.className='dd wide'; box.innerHTML='';
+  const mk=(label,fn,cls)=>{ const b=document.createElement('button'); b.textContent=label; if(cls) b.className=cls; b.onclick=()=>{ closeMenus(); fn(); }; box.appendChild(b); return b; };
+  if(!hasFS){ box.innerHTML='<div class="empty">Výběr složky podporuje jen Chrome, Edge nebo Opera. V tomto prohlížeči se soubor ukládá stažením – cílovou složku určuje nastavení prohlížeče (Safari: Předvolby › Obecné › „Umístění stahovaných souborů: Zeptat se“).</div>'; return; }
+  const d=state.dirHandle;
+  const head=document.createElement('div'); head.className='head';
+  head.innerHTML = d ? 'Pracovní složka: <b></b>' : 'Žádná pracovní složka nevybrána';
+  if(d) head.querySelector('b').textContent=d.name;
+  box.appendChild(head);
+  mk(d?'Změnit složku…':'Vybrat složku…', pickDir);
+  if(!d) return;
+  mk('Uložit „'+state.fileName+'“ do této složky', ()=>saveToDir(false), 'strong');
+  mk('Uložit do této složky pod jiným názvem…', ()=>saveToDir(true));
+  const files=document.createElement('div'); files.className='files'; box.appendChild(files);
+  files.innerHTML='<div class="empty">Načítám obsah složky…</div>';
+  try{
+    if(!(await ensurePerm(d,'readwrite'))){ files.innerHTML='<div class="empty">Přístup ke složce nebyl povolen.</div>'; return; }
+    const list=[]; for await (const [name,h] of d.entries()){ if(h.kind==='file' && EDITABLE_EXT.has(extOf(name))) list.push({name,h}); }
+    list.sort((a,b)=>a.name.localeCompare(b.name,'cs'));
+    files.innerHTML='';
+    if(!list.length){ files.innerHTML='<div class="empty">Ve složce nejsou žádné editovatelné soubory.</div>'; return; }
+    const cap=document.createElement('div'); cap.className='hint'; cap.textContent='Otevřít ze složky ('+list.length+'):'; files.appendChild(cap);
+    list.slice(0,60).forEach(f=>{ const b=document.createElement('button'); b.className='file'; b.textContent=f.name; b.onclick=()=>{ closeMenus(); openFromDir(f.h); }; files.appendChild(b); });
+    if(list.length>60){ const m=document.createElement('div'); m.className='hint'; m.textContent='… a dalších '+(list.length-60); files.appendChild(m); }
+  }catch(e){ files.innerHTML='<div class="empty">Složku se nepodařilo přečíst (byla smazána nebo přesunuta?). Vyberte ji znovu.</div>'; }
 }
 
 /* ---- drag & drop ---- */
@@ -1004,7 +1087,7 @@ function replaceAll(text){ const c=cm.getCursor(), s=cm.getScrollInfo(); cm.oper
 
 /* ================= UI drátování ================= */
 function closeMenus(){ document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open')); }
-document.querySelectorAll('.menu > .btn').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const m=b.parentElement; const was=m.classList.contains('open'); closeMenus(); if(!was){ m.classList.add('open'); if(m.id==='recentMenu') renderRecent(); } }));
+document.querySelectorAll('.menu > .btn').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); const m=b.parentElement; const was=m.classList.contains('open'); closeMenus(); if(!was){ m.classList.add('open'); if(m.id==='recentMenu') renderRecent(); if(m.id==='dirMenu') renderDirMenu(); } }));
 document.addEventListener('click',closeMenus);
 document.querySelectorAll('[data-new]').forEach(b=>b.onclick=()=>{ closeMenus(); newDoc(b.dataset.new); });
 $('#btnOpen').onclick=openFile;
@@ -1023,6 +1106,7 @@ document.addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();
   if(k==='s'){ e.preventDefault(); e.shiftKey?saveFileAs():saveFile(); }
   else if(k==='o'){ e.preventDefault(); openFile(); }
+  else if(k==='d'&&e.shiftKey){ e.preventDefault(); saveToDir(false); }
   else if(k==='e'){ e.preventDefault(); togglePreview(); }
   else if(k==='f'&&e.shiftKey){ e.preventDefault(); formatDoc(); }
 });
@@ -1046,6 +1130,7 @@ console.log('HTML & JSON editor v'+APP_VERSION+' – © 2026 Jindřich Hegmon');
   if(!isMac) document.querySelectorAll('kbd').forEach(k=>k.textContent=k.textContent.replace('⌘','Ctrl+').replace('⇧','Shift+'));
   $('#stSaveMode').textContent = hasFS ? 'Ukládání: přímo na disk' : 'Ukládání: stažením souboru (přímý zápis podporuje Chrome/Edge)';
   if(!hasFS) $('#btnRecent').parentElement.style.display='none';
+  loadSavedDir();
 
   let draft=null; try{ draft=JSON.parse(localStorage.getItem(LS.draft)||'null'); }catch(e){}
   if(draft && draft.text && draft.text.trim()){

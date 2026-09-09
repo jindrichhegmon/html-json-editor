@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 – 2026-09-09
+- Volba cílové složky při ukládání: nové menu **Složka** – vybrat pracovní složku na disku, uložit do ní aktuální soubor (pod stejným nebo jiným názvem, s dotazem před přepsáním) a otevřít z ní libovolný soubor; složka se pamatuje i po zavření prohlížeče
+- „Uložit jako…" otevírá dialog ve složce původního souboru (nebo v pracovní složce)
+- Zkratka ⇧⌘D / Ctrl+Shift+D = uložit do pracovní složky
+
 ## 1.2.0 – 2026-09-09
 - Nové typy dokumentů: prostý text (TXT), Python a CSV – v menu Nový, ve výběru typu i automaticky podle přípony
 - Python: zvýraznění, kontrola závorek, neukončených řetězců a odsazení bloků; výchozí odsazení 4
