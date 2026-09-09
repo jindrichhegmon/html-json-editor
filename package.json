@@ -1,6 +1,6 @@
 {
   "name": "html-json-editor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Jednoduchý HTML a JSON editor v jednom souboru – kontrola syntaxe, zvýraznění, ukládání na disk, náhled HTML",
   "private": true,
   "scripts": {

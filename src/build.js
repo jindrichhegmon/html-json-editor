@@ -11,6 +11,7 @@ const jsFiles = [
   'mode/javascript/javascript.js',
   'mode/css/css.js',
   'mode/htmlmixed/htmlmixed.js',
+  'mode/python/python.js',
   'addon/edit/matchbrackets.js',
   'addon/edit/closebrackets.js',
   'addon/edit/closetag.js',

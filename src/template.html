@@ -6,7 +6,7 @@
 <title>HTML & JSON editor</title>
 <meta name="application-name" content="HTML & JSON editor">
 <meta name="author" content="Jindřich Hegmon">
-<meta name="description" content="Jednoduchý HTML a JSON editor – kontrola syntaxe, zvýraznění, ukládání na disk, náhled HTML. Verze /*__VERSION__*/">
+<meta name="description" content="Jednoduchý HTML, JSON, CSV, Python a textový editor – kontrola syntaxe, zvýraznění, ukládání na disk, náhled HTML. Verze /*__VERSION__*/">
 <link rel="icon" href="/*__ICON_URI__*/">
 <link rel="apple-touch-icon" href="/*__ICON_URI__*/">
 <style>
@@ -132,6 +132,10 @@ body.dragging #drop{display:flex}
 .cm-s-hje .cm-operator{color:var(--tk-bracket)}
 .cm-s-hje .cm-error{color:var(--tk-error);text-decoration:underline wavy}
 .cm-s-hje .cm-invalidchar{color:var(--tk-error)}
+.cm-s-hje .cm-csv-col0{color:var(--tk-tag)} .cm-s-hje .cm-csv-col1{color:var(--tk-string)} .cm-s-hje .cm-csv-col2{color:var(--tk-attr)}
+.cm-s-hje .cm-csv-col3{color:var(--tk-number)} .cm-s-hje .cm-csv-col4{color:var(--tk-atom)} .cm-s-hje .cm-csv-col5{color:var(--tk-keyword)}
+.cm-s-hje .cm-csv-header{font-weight:700}
+.cm-s-hje .cm-csv-delim{color:var(--tk-bracket)}
 .cm-s-hje .line-error{background:var(--err-line)}
 .cm-s-hje .line-warning{background:var(--warn-line)}
 .cm-s-hje .CodeMirror-lint-mark-error{background-image:none;text-decoration:underline wavy var(--danger);text-decoration-skip-ink:none}
@@ -155,6 +159,9 @@ body.dragging #drop{display:flex}
     <div class="dd">
       <button data-new="html">Nový HTML dokument</button>
       <button data-new="json">Nový JSON dokument</button>
+      <button data-new="text">Nový textový soubor (TXT)</button>
+      <button data-new="python">Nový Python skript</button>
+      <button data-new="csv">Nová CSV tabulka</button>
       <button data-new="empty">Prázdný soubor</button>
     </div>
   </div>
@@ -169,6 +176,9 @@ body.dragging #drop{display:flex}
   <select class="sel" id="modeSel" title="Typ dokumentu">
     <option value="html">HTML</option>
     <option value="json">JSON</option>
+    <option value="text">Text</option>
+    <option value="python">Python</option>
+    <option value="csv">CSV</option>
   </select>
   <button class="btn" id="btnFormat" title="Zformátovat / odsadit dokument">Formátovat <kbd>⇧⌘F</kbd></button>
   <button class="btn" id="btnMinify" title="Zhustit JSON na jeden řádek">Minifikovat</button>
@@ -217,7 +227,7 @@ body.dragging #drop{display:flex}
 <dialog id="about">
   <div class="ab">
     <div class="ab-head"><img src="/*__ICON_URI__*/" alt=""><div><h2>HTML &amp; JSON editor</h2><div class="ver">Verze /*__VERSION__*/ (/*__BUILD_DATE__*/)</div></div></div>
-    <p>Jednoduchý editor HTML a JSON v jednom souboru: zvýraznění syntaxe, průběžná kontrola chyb, živý náhled HTML, ukládání přímo na disk. Funguje i offline.</p>
+    <p>Jednoduchý editor HTML, JSON, CSV, Python a prostého textu v jednom souboru: zvýraznění syntaxe, průběžná kontrola chyb, živý náhled HTML, ukládání přímo na disk. Funguje i offline.</p>
     <table>
       <tr><td>Otevřít / Uložit / Uložit jako</td><td><kbd>⌘O</kbd> <kbd>⌘S</kbd> <kbd>⇧⌘S</kbd></td></tr>
       <tr><td>Náhled HTML / Formátovat</td><td><kbd>⌘E</kbd> <kbd>⇧⌘F</kbd></td></tr>
@@ -230,7 +240,7 @@ body.dragging #drop{display:flex}
   </div>
 </dialog>
 
-<input type="file" id="fileInput" hidden accept=".html,.htm,.xhtml,.json,.txt,.xml,.svg,.js,.css,.md">
+<input type="file" id="fileInput" hidden accept=".html,.htm,.xhtml,.json,.txt,.text,.log,.md,.py,.pyw,.csv,.tsv,.xml,.svg,.js,.css">
 <div id="toast"></div>
 
 <script>
@@ -283,7 +293,35 @@ const TEMPLATES = {
   ]
 }
 `,
+  text: `Poznámky
+=========
+
+Prostý text bez formátování.
+`,
+  python: `#!/usr/bin/env python3
+"""Nový skript."""
+
+
+def main() -> None:
+    print("Ahoj světe")
+
+
+if __name__ == "__main__":
+    main()
+`,
+  csv: `id;jmeno;mesto;castka
+1;Novák;Zlín;1250,50
+2;Svobodová;Brno;980,00
+3;Dvořák;Praha;2310,75
+`,
   empty: ''
+};
+const MODE_INFO = {
+  html:  {label:'HTML',   ext:'html', cm:'htmlmixed'},
+  json:  {label:'JSON',   ext:'json', cm:{name:'javascript', json:true}},
+  text:  {label:'Text',   ext:'txt',  cm:null},
+  python:{label:'Python', ext:'py',   cm:'python'},
+  csv:   {label:'CSV',    ext:'csv',  cm:'csv'},
 };
 
 /* ================= Pomocné ================= */
@@ -294,9 +332,14 @@ function guessMode(name, text){
   const e=extOf(name);
   if(e==='json') return 'json';
   if(['html','htm','xhtml','svg','xml'].includes(e)) return 'html';
+  if(['py','pyw'].includes(e)) return 'python';
+  if(['csv','tsv'].includes(e)) return 'csv';
+  if(['txt','text','log','md','markdown','ini','cfg','conf'].includes(e)) return 'text';
   const t=(text||'').trimStart();
   if(t.startsWith('{')||t.startsWith('[')) return 'json';
-  return 'html';
+  if(t.startsWith('<')) return 'html';
+  if(/^(#!.*python|from\s+\w+\s+import\s|import\s+\w+|def\s+\w+\(|class\s+\w+)/m.test(t)) return 'python';
+  return 'text';
 }
 function plural(n, one, few, many){ return n===1?one:(n>=2&&n<=4?few:many); }
 function lineStartsOf(text){ const ls=[0]; for(let i=0;i<text.length;i++) if(text.charCodeAt(i)===10) ls.push(i+1); return ls; }
@@ -512,6 +555,165 @@ function lintHTML(text){
   return out;
 }
 
+/* ================= CSV ================= */
+function detectDelimiter(text){
+  const sample=text.split('\n').slice(0,30).join('\n');
+  const cands=[',',';','\t','|']; let best=',', bestN=0;
+  for(const d of cands){ let n=0, q=false; for(const c of sample){ if(c==='"') q=!q; else if(!q&&c===d) n++; } if(n>bestN){ bestN=n; best=d; } }
+  return best;
+}
+CodeMirror.defineMode('csv', function(cfg, modeCfg){
+  const delim=modeCfg.delimiter||',';
+  return {
+    startState(){ return {col:0, inQuote:false, line:0}; },
+    token(stream, st){
+      if(stream.sol()){ if(!st.inQuote) st.col=0; }
+      const colCls=' csv-col'+(st.col%6)+(st.line===0?' csv-header':'');
+      if(st.inQuote){
+        while(!stream.eol()){ const c=stream.next(); if(c==='"'){ if(stream.peek()==='"'){ stream.next(); } else { st.inQuote=false; return 'string'+colCls; } } }
+        return 'string'+colCls;
+      }
+      if(stream.eat(delim)){ st.col++; return 'csv-delim'; }
+      if(stream.eat('"')){ st.inQuote=true; while(!stream.eol()){ const c=stream.next(); if(c==='"'){ if(stream.peek()==='"'){ stream.next(); } else { st.inQuote=false; return 'string'+colCls; } } } return 'string'+colCls; }
+      while(!stream.eol() && stream.peek()!==delim) stream.next();
+      return colCls.trim();
+    },
+    blankLine(st){ if(!st.inQuote) st.col=0; },
+  };
+});
+function parseCSV(text, delim){
+  // vrací {rows:[{line, fields}], unclosed:{line,ch}|null}
+  const rows=[]; let fields=[], f='', q=false, line=0, ch=0, startLine=0, qLine=0, qCh=0;
+  const n=text.length;
+  for(let i=0;i<n;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; ch++; } else q=false; }
+      else f+=c;
+      if(c==='\n'){ line++; ch=0; continue; }
+    } else if(c==='"'){ q=true; qLine=line; qCh=ch; }
+    else if(c===delim){ fields.push(f); f=''; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n'){ i++; } fields.push(f); rows.push({line:startLine, fields}); fields=[]; f=''; line++; ch=0; startLine=line; continue; }
+    else f+=c;
+    ch++;
+  }
+  if(f!==''||fields.length) { fields.push(f); rows.push({line:startLine, fields}); }
+  return {rows, unclosed: q?{line:qLine,ch:qCh}:null};
+}
+function lintCSV(text){
+  const out=[]; if(!text.trim()) return out;
+  const delim=detectDelimiter(text); state.csvDelim=delim;
+  const {rows, unclosed}=parseCSV(text, delim);
+  if(unclosed) out.push({severity:'error', from:CodeMirror.Pos(unclosed.line,unclosed.ch), to:CodeMirror.Pos(unclosed.line,unclosed.ch+1), message:'Neuzavřená uvozovka – pole v uvozovkách nemá koncovou uvozovku'});
+  const data=rows.filter(r=>!(r.fields.length===1&&r.fields[0].trim()===''));
+  if(data.length<2) return out;
+  const expected=data[0].fields.length;
+  const dn=delim==='\t'?'tabulátor':'„'+delim+'“';
+  for(const r of data.slice(1)){
+    if(r.fields.length!==expected){
+      const ll=cm.getLine(r.line); const len=ll?ll.length:1;
+      out.push({severity:r.fields.length>expected?'error':'warning', from:CodeMirror.Pos(r.line,0), to:CodeMirror.Pos(r.line,len), message:'Řádek má '+r.fields.length+' '+plural(r.fields.length,'sloupec','sloupce','sloupců')+', hlavička má '+expected+' (oddělovač '+dn+')'});
+    }
+  }
+  return out;
+}
+function csvStatus(text){
+  const delim=state.csvDelim||','; const {rows}=parseCSV(text, delim);
+  const data=rows.filter(r=>!(r.fields.length===1&&r.fields[0].trim()===''));
+  const cols=data.length?data[0].fields.length:0;
+  return data.length+' '+plural(data.length,'řádek','řádky','řádků')+' × '+cols+' '+plural(cols,'sloupec','sloupce','sloupců')+', oddělovač '+(delim==='\t'?'TAB':'„'+delim+'“');
+}
+function applyCsvDelimiter(){
+  const d=detectDelimiter(cm.getValue());
+  if(d!==state.csvDelim){ state.csvDelim=d; cm.setOption('mode',{name:'csv', delimiter:d}); }
+}
+
+/* ================= Kontrola Pythonu ================= */
+function lintPython(text){
+  const out=[]; const n=text.length;
+  const pos=makePos(lineStartsOf(text));
+  const add=(sev,a,b,msg)=>out.push({severity:sev, from:pos(a), to:pos(Math.max(b,a+1)), message:msg});
+  const OPEN={'(':')','[':']','{':'}'}; const CLOSE={')':'(',']':'[','}':'{'};
+  const stack=[]; // {ch, at}
+  const lines=[]; // logické řádky: {start, indent, endsColon, isBlank/comment}
+  let i=0; let lineStart=0; let logicalStart=0; let contBackslash=false;
+  let curIndent=null; // odsazení logického řádku
+  let lastToken=''; // poslední nebílý znak logického řádku (pro ':')
+  let lastTokenAt=0;
+  let lineHasCode=false;
+  function endLogicalLine(endAt){
+    if(lineHasCode) lines.push({start:logicalStart, indent:curIndent, endsColon:lastToken===':', at:lastTokenAt, end:endAt});
+    lineHasCode=false; lastToken=''; curIndent=null;
+  }
+  while(i<n){
+    const c=text[i];
+    // začátek fyzického řádku: spočítat odsazení
+    if(i===lineStart){
+      let j=i, sp=0, tab=0; while(j<n&&(text[j]===' '||text[j]==='\t')){ if(text[j]===' ') sp++; else tab++; j++; }
+      const rest=text[j];
+      const blank = j>=n || rest==='\n' || rest==='\r' || rest==='#';
+      if(!blank && stack.length===0 && !contBackslash){
+        logicalStart=i; curIndent=sp+tab*8;
+        if(sp&&tab) add('warning',i,j,'Smíšené odsazení tabulátory a mezerami');
+      }
+      if(!blank && stack.length===0 && contBackslash){ /* pokračování řádku */ }
+      contBackslash=false;
+      i=j; if(i>=n) break;
+      if(rest==='#'){ while(i<n&&text[i]!=='\n') i++; if(i<n){ i++; lineStart=i; } if(stack.length===0) { /* komentářový řádek nic nemění */ } continue; }
+      if(rest==='\n'||rest==='\r'){ if(rest==='\r'&&text[i+1]==='\n') i++; i++; lineStart=i; continue; }
+    }
+    const ch=text[i];
+    // řetězce
+    if(ch==='"'||ch==="'"){
+      const triple=text.substr(i,3)===ch.repeat(3);
+      const s=i; i+=triple?3:1; let closed=false;
+      while(i<n){
+        const d=text[i];
+        if(d==='\\'){ i+=2; continue; }
+        if(triple){ if(text.substr(i,3)===ch.repeat(3)){ i+=3; closed=true; break; } if(d==='\n'){ lineStart=i+1; } i++; }
+        else { if(d===ch){ i++; closed=true; break; } if(d==='\n'){ break; } i++; }
+      }
+      if(!closed) add('error',s,s+(triple?3:1),triple?'Neukončený víceřádkový řetězec (chybí '+ch.repeat(3)+')':'Neukončený řetězec – chybí koncová uvozovka '+ch);
+      lastToken='str'; lastTokenAt=i; lineHasCode=true; continue;
+    }
+    if(ch==='#'){ while(i<n&&text[i]!=='\n') i++; continue; }
+    if(ch==='\\' && (text[i+1]==='\n'||text[i+1]==='\r')){ contBackslash=true; i++; continue; }
+    if(ch==='\n'||ch==='\r'){
+      if(ch==='\r'&&text[i+1]==='\n') i++;
+      i++; lineStart=i;
+      if(stack.length===0 && !contBackslash) endLogicalLine(i);
+      continue;
+    }
+    if(OPEN[ch]){ stack.push({ch, at:i}); lastToken=ch; lastTokenAt=i; lineHasCode=true; i++; continue; }
+    if(CLOSE[ch]){
+      const top=stack[stack.length-1];
+      if(!top) add('error',i,i+1,'Přebývající uzavírací závorka „'+ch+'“');
+      else if(top.ch!==CLOSE[ch]){ add('error',i,i+1,'Závorka „'+ch+'“ neodpovídá otevírací „'+top.ch+'“ (řádek '+(pos(top.at).line+1)+')'); stack.pop(); }
+      else stack.pop();
+      lastToken=ch; lastTokenAt=i; lineHasCode=true; i++; continue;
+    }
+    if(ch!==' '&&ch!=='\t'){ lastToken=ch; lastTokenAt=i; lineHasCode=true; }
+    i++;
+  }
+  if(stack.length===0) endLogicalLine(n);
+  for(const b of stack) add('error',b.at,b.at+1,'Neuzavřená závorka „'+b.ch+'“');
+  // odsazení bloků
+  for(let k=0;k<lines.length;k++){
+    const L=lines[k], N=lines[k+1];
+    if(L.endsColon){
+      if(!N || N.indent<=L.indent) add('error',L.start,L.at+1,'Za řádkem končícím dvojtečkou chybí odsazený blok');
+    } else if(N && N.indent>L.indent){
+      add('error',N.start,N.start+N.indent,'Neočekávané odsazení (řádek není uvnitř bloku)');
+    }
+    if(k>0 && L.indent<lines[k-1].indent){
+      // dedent musí sedět na některou z předchozích úrovní
+      let ok=false; for(let m=k-1;m>=0;m--){ if(lines[m].indent===L.indent){ ok=true; break; } if(lines[m].indent<L.indent) break; }
+      if(!ok) add('error',L.start,L.start+Math.max(L.indent,1),'Odsazení neodpovídá žádné vnější úrovni bloku');
+    }
+  }
+  return out;
+}
+
 /* ================= Formátování ================= */
 function reindentHTML(text, unit){
   const lines=text.split('\n'); const out=[]; let depth=0; let raw=null;
@@ -557,7 +759,7 @@ const cm = CodeMirror.fromTextArea($('#code'), {
   matchBrackets:true, autoCloseBrackets:true, autoCloseTags:true, matchTags:{bothTags:true},
   styleActiveLine:true, foldGutter:true,
   gutters:['CodeMirror-lint-markers','CodeMirror-linenumbers','CodeMirror-foldgutter'],
-  lint:{ getAnnotations:txt=>state.mode==='json'?lintJSON(txt):lintHTML(txt), async:false, delay:250, onUpdateLinting:onLint },
+  lint:{ getAnnotations:txt=>({json:lintJSON, html:lintHTML, python:lintPython, csv:lintCSV}[state.mode]||(()=>[]))(txt), async:false, delay:250, onUpdateLinting:onLint },
   extraKeys:{
     'Tab':cmi=>{ if(cmi.somethingSelected()) cmi.indentSelection('add'); else cmi.replaceSelection(' '.repeat(cmi.getOption('indentUnit')),'end'); },
     'Shift-Tab':'indentLess',
@@ -568,12 +770,19 @@ const cm = CodeMirror.fromTextArea($('#code'), {
 });
 
 function setMode(mode){
+  if(!MODE_INFO[mode]) mode='text';
   state.mode=mode;
-  cm.setOption('mode', mode==='json'? {name:'javascript', json:true} : 'htmlmixed');
+  if(mode==='csv'){ state.csvDelim=detectDelimiter(cm.getValue()); cm.setOption('mode',{name:'csv', delimiter:state.csvDelim}); }
+  else cm.setOption('mode', MODE_INFO[mode].cm);
   cm.setOption('autoCloseTags', mode==='html');
+  cm.setOption('autoCloseBrackets', mode==='html'||mode==='json'||mode==='python');
+  cm.setOption('matchBrackets', mode!=='csv'&&mode!=='text');
   $('#modeSel').value=mode;
-  $('#stMode').textContent=mode.toUpperCase();
+  $('#stMode').textContent=MODE_INFO[mode].label.toUpperCase();
   $('#btnPreview').disabled = mode!=='html';
+  $('#btnFormat').disabled = !(mode==='html'||mode==='json'||mode==='csv');
+  $('#btnFormat').title = mode==='csv'?'Vyčistit CSV: ořezat mezery, sjednotit uvozovky, odstranit prázdné řádky':'Zformátovat / odsadit dokument';
+  if(!localStorage.getItem(LS.tab)){ const n=mode==='python'?4:2; if(cm.getOption('indentUnit')!==n){ cm.setOption('indentUnit',n); cm.setOption('tabSize',n); $('#tabSel').value=String(n); } }
   $('#btnMinify').disabled = mode!=='json';
   $('#btnPreviewWindow').disabled = mode!=='html';
   if(mode!=='html') document.body.classList.remove('preview-on'); else if(localStorage.getItem(LS.preview)==='1') document.body.classList.add('preview-on');
@@ -628,7 +837,8 @@ const saveDraft=debounce(()=>{ if(!state.dirty) return; try{ localStorage.setIte
 cm.on('change',()=>{
   const v=cm.getValue();
   setDirty(v!==state.savedText);
-  $('#stSize').textContent=cm.lineCount()+' '+plural(cm.lineCount(),'řádek','řádky','řádků')+', '+v.length.toLocaleString('cs-CZ')+' znaků';
+  if(state.mode==='csv'){ applyCsvDelimiter(); $('#stSize').textContent=csvStatus(v); }
+  else $('#stSize').textContent=cm.lineCount()+' '+plural(cm.lineCount(),'řádek','řádky','řádků')+', '+v.length.toLocaleString('cs-CZ')+' znaků';
   schedulePreview(); saveDraft();
 });
 
@@ -661,7 +871,10 @@ $('#btnPreviewWindow').onclick=()=>{ const url=URL.createObjectURL(new Blob([cm.
 const FILE_TYPES=[
   {description:'HTML', accept:{'text/html':['.html','.htm']}},
   {description:'JSON', accept:{'application/json':['.json']}},
-  {description:'Text', accept:{'text/plain':['.txt','.xml','.svg','.css','.js','.md']}},
+  {description:'Text', accept:{'text/plain':['.txt','.text','.log','.md']}},
+  {description:'Python', accept:{'text/x-python':['.py','.pyw']}},
+  {description:'CSV', accept:{'text/csv':['.csv','.tsv']}},
+  {description:'Ostatní', accept:{'text/plain':['.xml','.svg','.css','.js','.ini','.cfg']}},
 ];
 function confirmDiscard(){ return !state.dirty || confirm('Dokument má neuložené změny. Zahodit je?'); }
 
@@ -681,8 +894,8 @@ $('#fileInput').addEventListener('change',async e=>{
 });
 
 async function writeToHandle(h, text){ const w=await h.createWritable(); await w.write(text); await w.close(); }
-function downloadFile(text, name){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:state.mode==='json'?'application/json':'text/html'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); }
-function suggestedName(){ const e=extOf(state.fileName); const want=state.mode==='json'?'json':'html'; if(!e) return state.fileName+'.'+want; if((state.mode==='json')!==(e==='json') && state.fileName.startsWith('bez názvu')) return 'bez názvu.'+want; return state.fileName; }
+function downloadFile(text, name){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:{json:'application/json',html:'text/html',csv:'text/csv',python:'text/x-python'}[state.mode]||'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); }
+function suggestedName(){ const e=extOf(state.fileName); const want=MODE_INFO[state.mode].ext; if(!e) return state.fileName+'.'+want; if(state.fileName.startsWith('bez názvu') && guessMode(state.fileName,'')!==state.mode) return 'bez názvu.'+want; return state.fileName; }
 
 async function saveFile(){
   const text=cm.getValue();
@@ -707,8 +920,8 @@ async function saveFileAs(){
 }
 function newDoc(kind){
   if(!confirmDiscard()) return;
-  const mode=kind==='json'?'json':'html';
-  loadText(TEMPLATES[kind]||'', 'bez názvu.'+mode, null);
+  const mode=MODE_INFO[kind]?kind:'html';
+  loadText(TEMPLATES[kind]||'', 'bez názvu.'+MODE_INFO[mode].ext, null);
   if(kind==='empty') setMode('html');
 }
 
@@ -774,7 +987,13 @@ function formatDoc(){
   if(state.mode==='json'){
     try{ const v=JSON.parse(cm.getValue()); replaceAll(JSON.stringify(v,null,unit)+'\n'); toast('JSON zformátován'); }
     catch(e){ toast('Nelze formátovat – JSON obsahuje chyby (viz panel Problémy)',3500); }
-  } else { replaceAll(reindentHTML(cm.getValue(),unit)); toast('HTML odsazeno'); }
+  } else if(state.mode==='csv'){
+    const d=state.csvDelim||','; const {rows,unclosed}=parseCSV(cm.getValue(), d);
+    if(unclosed){ toast('Nelze vyčistit – CSV obsahuje neuzavřenou uvozovku',3500); return; }
+    const data=rows.filter(r=>!(r.fields.length===1&&r.fields[0].trim()===''));
+    const q=v=>{ v=v.trim(); return (v.includes(d)||v.includes('"')||v.includes('\n'))?'"'+v.replace(/"/g,'""')+'"':v; };
+    replaceAll(data.map(r=>r.fields.map(q).join(d)).join('\n')+'\n'); toast('CSV vyčištěno (ořezány mezery, sjednoceny uvozovky, odstraněny prázdné řádky)',3500);
+  } else if(state.mode==='html'){ replaceAll(reindentHTML(cm.getValue(),unit)); toast('HTML odsazeno'); }
 }
 function minifyDoc(){
   if(state.mode!=='json') return;
@@ -793,7 +1012,7 @@ $('#btnSave').onclick=saveFile;
 $('#btnSaveAs').onclick=saveFileAs;
 $('#btnFormat').onclick=formatDoc;
 $('#btnMinify').onclick=minifyDoc;
-$('#modeSel').onchange=e=>{ setMode(e.target.value); const ext=extOf(state.fileName); if(state.fileName.startsWith('bez názvu')) setFileName('bez názvu.'+state.mode); };
+$('#modeSel').onchange=e=>{ setMode(e.target.value); if(state.fileName.startsWith('bez názvu')) setFileName('bez názvu.'+MODE_INFO[state.mode].ext); };
 $('#btnWrap').onclick=()=>{ const on=!cm.getOption('lineWrapping'); cm.setOption('lineWrapping',on); $('#btnWrap').classList.toggle('active',on); localStorage.setItem(LS.wrap,on?'1':'0'); };
 $('#tabSel').onchange=e=>{ const n=+e.target.value; cm.setOption('indentUnit',n); cm.setOption('tabSize',n); localStorage.setItem(LS.tab,String(n)); };
 function applyTheme(t){ document.documentElement.setAttribute('data-theme',t); $('#btnTheme').textContent=t==='dark'?'☀':'☾'; localStorage.setItem(LS.theme,t); }
