@@ -31,8 +31,10 @@ Otevřete `html-json-editor.html` (lokálně dvojklikem, nebo online adresu vý�
 ```
 html-json-editor.html   hotový editor (jediný soubor, který je potřeba)
 src/template.html       zdroj: UI + vlastní logika (lint, ukládání, náhled)
-src/build.js            vloží minifikovaný CodeMirror do šablony
-package.json            npm run build
+src/build.js            vloží minifikovaný CodeMirror, ikonu a číslo verze do šablony
+src/icon.svg            ikona aplikace (favicon, záhlaví, dialog O aplikaci)
+package.json            npm run build; pole "version" = verze aplikace
+CHANGELOG.md            historie verzí
 netlify.toml            nasazení na Netlify (adresa / otevře editor)
 ```
 
@@ -42,3 +44,8 @@ npm install
 npm run build        # přegeneruje html-json-editor.html v kořeni
 ```
 Úpravy dělejte v `src/template.html` (druhý `<script>` blok obsahuje veškerou logiku) a pak spusťte build. Drobné úpravy lze dělat i přímo v hotovém `html-json-editor.html`.
+
+## Verzování
+Verze aplikace je jen na jednom místě – v `package.json` (`"version"`). Build ji vloží do stavového řádku, dialogu „O aplikaci" (klik na název nebo na verzi vpravo dole) a do komentáře v hlavičce souboru spolu s datem sestavení. Při změně: zvýšit verzi v `package.json`, doplnit `CHANGELOG.md`, `npm run build`, commit a push (Netlify nasadí automaticky).
+
+© 2026 Jindřich Hegmon. Obsahuje CodeMirror 5 (MIT License).

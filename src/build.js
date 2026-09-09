@@ -45,10 +45,23 @@ const cssFiles = [
   let css = '';
   for (const f of cssFiles) css += `/* ${f} */\n` + fs.readFileSync(path.join(CM, f), 'utf8') + '\n';
 
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const version = pkg.version;
+  const buildDate = new Date().toISOString().slice(0, 10);
+  const iconSvg = fs.readFileSync(path.join(__dirname, 'icon.svg'), 'utf8');
+  const iconUri = 'data:image/svg+xml;base64,' + Buffer.from(iconSvg).toString('base64');
   const tpl = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
   if (!tpl.includes('/*__CM_JS__*/') || !tpl.includes('/*__CM_CSS__*/')) throw new Error('markers missing');
-  const out = tpl.replace('/*__CM_CSS__*/', () => css).replace('/*__CM_JS__*/', () => js);
+  let out = tpl.replace('/*__CM_CSS__*/', () => css).replace('/*__CM_JS__*/', () => js);
+  out = out.split('/*__VERSION__*/').join(version).split('/*__BUILD_DATE__*/').join(buildDate).split('/*__ICON_URI__*/').join(iconUri);
+  if (/\/\*__[A-Z_]+__\*\//.test(out)) throw new Error('unreplaced marker');
+  out = out.replace('<!DOCTYPE html>', `<!DOCTYPE html>
+<!--
+  HTML & JSON editor v${version} (${buildDate})
+  © 2026 Jindřich Hegmon – https://github.com/jindrichhegmon/html-json-editor
+  Obsahuje CodeMirror 5 (MIT License, https://codemirror.net/5/)
+-->`);
   const dest = path.join(ROOT, 'html-json-editor.html');
     fs.writeFileSync(dest, out);
-  console.log('written', dest, (out.length / 1024).toFixed(0) + ' KB');
+  console.log('written', dest, 'v' + version, (out.length / 1024).toFixed(0) + ' KB');
 })();

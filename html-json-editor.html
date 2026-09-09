@@ -1,9 +1,19 @@
 <!DOCTYPE html>
+<!--
+  HTML & JSON editor v1.1.0 (2026-09-09)
+  © 2026 Jindřich Hegmon – https://github.com/jindrichhegmon/html-json-editor
+  Obsahuje CodeMirror 5 (MIT License, https://codemirror.net/5/)
+-->
 <html lang="cs">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HTML & JSON editor</title>
+<meta name="application-name" content="HTML & JSON editor">
+<meta name="author" content="Jindřich Hegmon">
+<meta name="description" content="Jednoduchý HTML a JSON editor – kontrola syntaxe, zvýraznění, ukládání na disk, náhled HTML. Verze 1.1.0">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyNTYzZWIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjN2MzYWVkIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHJ4PSIxNCIgZmlsbD0idXJsKCNnKSIvPgogIDxwYXRoIGQ9Ik0yMiAyMCBMMTEgMzIgTDIyIDQ0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iNS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNNDIgMjAgTDUzIDMyIEw0MiA0NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjUuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTM2IDE2IEwyOCA0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmRlNjhhIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K">
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyNTYzZWIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjN2MzYWVkIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHJ4PSIxNCIgZmlsbD0idXJsKCNnKSIvPgogIDxwYXRoIGQ9Ik0yMiAyMCBMMTEgMzIgTDIyIDQ0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iNS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNNDIgMjAgTDUzIDMyIEw0MiA0NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjUuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTM2IDE2IEwyOCA0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmRlNjhhIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K">
 <style>
 /* lib/codemirror.css */
 /* BASICS */
@@ -512,8 +522,22 @@ html,body{height:100%;margin:0}
 body{font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden}
 button,select{font:inherit;color:inherit}
 .topbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:8px;font-weight:600;margin-right:8px;white-space:nowrap}
-.brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;margin-right:8px;white-space:nowrap;cursor:pointer}
+.brand .logo{width:24px;height:24px;border-radius:6px;display:block}
+#about{border:0;border-radius:14px;padding:0;background:var(--panel);color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.35);max-width:420px;width:calc(100vw - 40px)}
+#about::backdrop{background:rgba(0,0,0,.45)}
+#about .ab{padding:22px 24px 18px}
+#about .ab-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+#about .ab-head img{width:56px;height:56px;border-radius:14px}
+#about h2{margin:0;font-size:18px}
+#about .ver{color:var(--muted);font-size:13px}
+#about p{margin:6px 0;font-size:13.5px;line-height:1.5}
+#about table{font-size:12.5px;border-collapse:collapse;margin-top:8px;width:100%}
+#about td{padding:2px 0;color:var(--muted)} #about td:first-child{color:var(--text)}
+#about kbd{font:11px ui-monospace,Menlo,monospace;border:1px solid var(--border);border-radius:3px;padding:1px 4px;background:var(--panel2)}
+#about .ab-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12px;color:var(--muted)}
+#about a{color:var(--accent);text-decoration:none}
+.status .copy{white-space:nowrap}
 .btn{border:1px solid var(--border);background:var(--panel2);border-radius:6px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;line-height:1.2}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
@@ -613,7 +637,7 @@ body.dragging #drop{display:flex}
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo">&lt;/&gt;</span><span>HTML &amp; JSON editor</span></div>
+  <div class="brand" id="brand" title="O aplikaci"><img class="logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyNTYzZWIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjN2MzYWVkIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHJ4PSIxNCIgZmlsbD0idXJsKCNnKSIvPgogIDxwYXRoIGQ9Ik0yMiAyMCBMMTEgMzIgTDIyIDQ0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iNS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNNDIgMjAgTDUzIDMyIEw0MiA0NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjUuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTM2IDE2IEwyOCA0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmRlNjhhIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K" alt=""><span>HTML &amp; JSON editor</span></div>
   <div class="menu" id="newMenu">
     <button class="btn" id="btnNew">Nový ▾</button>
     <div class="dd">
@@ -675,7 +699,24 @@ body.dragging #drop{display:flex}
   <span id="stLint" class="ok">✔ Bez chyb</span>
   <span class="grow"></span>
   <span id="stSaveMode"></span>
+  <span class="copy" id="stAbout" title="O aplikaci" style="cursor:pointer">v1.1.0 · © 2026 Jindřich Hegmon</span>
 </footer>
+
+<dialog id="about">
+  <div class="ab">
+    <div class="ab-head"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyNTYzZWIiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjN2MzYWVkIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHJ4PSIxNCIgZmlsbD0idXJsKCNnKSIvPgogIDxwYXRoIGQ9Ik0yMiAyMCBMMTEgMzIgTDIyIDQ0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iNS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNNDIgMjAgTDUzIDMyIEw0MiA0NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjUuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTM2IDE2IEwyOCA0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmRlNjhhIiBzdHJva2Utd2lkdGg9IjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K" alt=""><div><h2>HTML &amp; JSON editor</h2><div class="ver">Verze 1.1.0 (2026-09-09)</div></div></div>
+    <p>Jednoduchý editor HTML a JSON v jednom souboru: zvýraznění syntaxe, průběžná kontrola chyb, živý náhled HTML, ukládání přímo na disk. Funguje i offline.</p>
+    <table>
+      <tr><td>Otevřít / Uložit / Uložit jako</td><td><kbd>⌘O</kbd> <kbd>⌘S</kbd> <kbd>⇧⌘S</kbd></td></tr>
+      <tr><td>Náhled HTML / Formátovat</td><td><kbd>⌘E</kbd> <kbd>⇧⌘F</kbd></td></tr>
+      <tr><td>Hledat / Komentář / Párový tag</td><td><kbd>⌘F</kbd> <kbd>⌘/</kbd> <kbd>⌘J</kbd></td></tr>
+    </table>
+    <div class="ab-foot">
+      <span>© 2026 Jindřich Hegmon · <a href="https://github.com/jindrichhegmon/html-json-editor" target="_blank" rel="noopener">GitHub</a> · CodeMirror 5 (MIT)</span>
+      <button class="btn" id="aboutClose">Zavřít</button>
+    </div>
+  </div>
+</dialog>
 
 <input type="file" id="fileInput" hidden accept=".html,.htm,.xhtml,.json,.txt,.xml,.svg,.js,.css,.md">
 <div id="toast"></div>
@@ -1297,6 +1338,15 @@ document.addEventListener('keydown',e=>{
   else if(k==='f'&&e.shiftKey){ e.preventDefault(); formatDoc(); }
 });
 window.addEventListener('beforeunload',e=>{ if(state.dirty){ e.preventDefault(); e.returnValue=''; } });
+
+/* ---- O aplikaci ---- */
+const APP_VERSION='1.1.0';
+function showAbout(){ const d=$('#about'); if(d.showModal) d.showModal(); else d.setAttribute('open',''); }
+$('#brand').onclick=showAbout; $('#stAbout').onclick=showAbout;
+$('#aboutClose').onclick=()=>$('#about').close();
+$('#about').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.close(); });
+if(!isMac) document.querySelectorAll('#about kbd').forEach(k=>k.textContent=k.textContent.replace('⇧⌘','Ctrl+Shift+').replace('⌘','Ctrl+'));
+console.log('HTML & JSON editor v'+APP_VERSION+' – © 2026 Jindřich Hegmon');
 
 /* ================= Start ================= */
 (function init(){
