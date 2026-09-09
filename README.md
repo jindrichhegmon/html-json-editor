@@ -2,11 +2,16 @@
 
 Jednoduchý editor HTML, JSON, CSV, Pythonu a prostého textu v jednom souboru (`html-json-editor.html`, ~350 KB, funguje offline – CodeMirror 5 je vložen přímo do souboru).
 
-- Online: **https://html-json-editor.netlify.app** (nasazuje se automaticky z větve `main`)
+- Online: **https://htmledit.hegmonfamily.com** (alias https://html-json-editor.netlify.app; nasazuje se automaticky z větve `main`)
 - Repozitář: https://github.com/jindrichhegmon/html-json-editor
 
 ## Použití
-Otevřete `html-json-editor.html` (lokálně dvojklikem, nebo online adresu výše) v Chromu nebo Edge. V těchto prohlížečích funguje přímý zápis na disk (File System Access API): **Uložit** přepíše původní soubor, **Uložit jako…** otevře systémový dialog, **Nedávné** nabídne naposledy otevřené soubory. V Safari/Firefoxu editor běží také, jen se ukládá stažením souboru.
+Otevřete `html-json-editor.html` (lokálně dvojklikem, nebo online adresu výše) v Chromu nebo Edge. V těchto prohlížečích funguje přímý zápis na disk (File System Access API):
+
+- **Uložit** přepíše původní soubor (ten, ze kterého byl dokument otevřen).
+- **Uložit jako…** otevře systémový dialog, kde vyberete složku i název – dialog se otevírá ve složce původního souboru, případně v pracovní složce.
+- **Složka** – pracovní složka na disku: „Vybrat složku…", pak „Uložit do této složky" (pod stejným nebo jiným názvem; před přepsáním existujícího souboru se editor zeptá) a seznam souborů ve složce k přímému otevření. Vybraná složka se pamatuje i po zavření prohlížeče (při dalším použití prohlížeč jen požádá o potvrzení přístupu).
+- **Nedávné** nabídne naposledy otevřené soubory. V Safari/Firefoxu editor běží také, jen se ukládá stažením souboru.
 
 ## Podporované formáty
 | Typ | Přípony | Zvýraznění | Kontrola |
@@ -32,6 +37,7 @@ Typ se pozná podle přípony (u souboru bez přípony podle obsahu) a jde přep
 | Otevřít | ⌘O | Ctrl+O |
 | Uložit | ⌘S | Ctrl+S |
 | Uložit jako | ⇧⌘S | Ctrl+Shift+S |
+| Uložit do pracovní složky | ⇧⌘D | Ctrl+Shift+D |
 | Náhled HTML | ⌘E | Ctrl+E |
 | Formátovat | ⇧⌘F | Ctrl+Shift+F |
 | Komentář | ⌘/ | Ctrl+/ |
