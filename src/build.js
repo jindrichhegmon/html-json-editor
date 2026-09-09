@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { minify } = require('terser');
 
-const CM = path.join(__dirname, 'node_modules/codemirror');
+const ROOT = path.join(__dirname, '..');
+const CM = path.join(ROOT, 'node_modules/codemirror');
 const jsFiles = [
   'lib/codemirror.js',
   'mode/xml/xml.js',
@@ -47,8 +48,7 @@ const cssFiles = [
   const tpl = fs.readFileSync(path.join(__dirname, 'template.html'), 'utf8');
   if (!tpl.includes('/*__CM_JS__*/') || !tpl.includes('/*__CM_CSS__*/')) throw new Error('markers missing');
   const out = tpl.replace('/*__CM_CSS__*/', () => css).replace('/*__CM_JS__*/', () => js);
-  const dest = path.join(__dirname, 'dist', 'html-json-editor.html');
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(dest, out);
+  const dest = path.join(ROOT, 'html-json-editor.html');
+    fs.writeFileSync(dest, out);
   console.log('written', dest, (out.length / 1024).toFixed(0) + ' KB');
 })();

@@ -1,0 +1,13 @@
+{
+  "name": "html-json-editor",
+  "version": "1.0.0",
+  "description": "Jednoduchý HTML a JSON editor v jednom souboru – kontrola syntaxe, zvýraznění, ukládání na disk, náhled HTML",
+  "private": true,
+  "scripts": {
+    "build": "node src/build.js"
+  },
+  "devDependencies": {
+    "codemirror": "^5.65.19",
+    "terser": "^5.31.0"
+  }
+}

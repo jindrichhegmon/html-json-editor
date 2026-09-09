@@ -1,0 +1,13 @@
+# Netlify: publikuje kořen repozitáře; adresa webu otevře rovnou editor
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/html-json-editor.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"

@@ -2,8 +2,11 @@
 
 Jednoduchý editor HTML a JSON v jednom souboru (`html-json-editor.html`, ~330 KB, funguje offline – CodeMirror 5 je vložen přímo do souboru).
 
+- Online: **https://html-json-editor.netlify.app** (nasazuje se automaticky z větve `main`)
+- Repozitář: https://github.com/jindrichhegmon/html-json-editor
+
 ## Použití
-Otevřete `html-json-editor.html` v Chromu nebo Edge (dvojklik na soubor). V těchto prohlížečích funguje přímý zápis na disk (File System Access API): **Uložit** přepíše původní soubor, **Uložit jako…** otevře systémový dialog, **Nedávné** nabídne naposledy otevřené soubory. V Safari/Firefoxu editor běží také, jen se ukládá stažením souboru.
+Otevřete `html-json-editor.html` (lokálně dvojklikem, nebo online adresu výše) v Chromu nebo Edge. V těchto prohlížečích funguje přímý zápis na disk (File System Access API): **Uložit** přepíše původní soubor, **Uložit jako…** otevře systémový dialog, **Nedávné** nabídne naposledy otevřené soubory. V Safari/Firefoxu editor běží také, jen se ukládá stažením souboru.
 
 ## Co umí
 - Zvýraznění syntaxe HTML (vč. vloženého CSS/JS) a JSON, světlý/tmavý motiv, zalamování, odsazení 2/4, skládání bloků, párování závorek a tagů, hledání (⌘/Ctrl+F).
@@ -24,10 +27,18 @@ Otevřete `html-json-editor.html` v Chromu nebo Edge (dvojklik na soubor). V tě
 | Sbalit blok | Ctrl+Q | Ctrl+Q |
 | Skok na párový tag | ⌘J | Ctrl+J |
 
-## Sestavení ze zdrojů (složka `src/`)
+## Struktura repozitáře
 ```
-cd src
-npm install codemirror@5 terser
-node build.js        # vytvoří dist/html-json-editor.html
+html-json-editor.html   hotový editor (jediný soubor, který je potřeba)
+src/template.html       zdroj: UI + vlastní logika (lint, ukládání, náhled)
+src/build.js            vloží minifikovaný CodeMirror do šablony
+package.json            npm run build
+netlify.toml            nasazení na Netlify (adresa / otevře editor)
 ```
-`template.html` obsahuje celé UI a vlastní logiku (lint, ukládání, náhled) ve druhém `<script>` bloku; `build.js` do ní vloží minifikovaný CodeMirror. Drobné úpravy lze dělat i přímo v hotovém `html-json-editor.html`.
+
+## Sestavení ze zdrojů
+```
+npm install
+npm run build        # přegeneruje html-json-editor.html v kořeni
+```
+Úpravy dělejte v `src/template.html` (druhý `<script>` blok obsahuje veškerou logiku) a pak spusťte build. Drobné úpravy lze dělat i přímo v hotovém `html-json-editor.html`.
