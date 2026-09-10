@@ -2,7 +2,7 @@
 {
   "name": "Salda Centrum & Datec",
   "schemaVersion": 1,
-  "description": "Sloučený přehled sald pro Centrum (CLB) a Datec — v jedné aplikaci se přepíná mezi agendou dodavatelů (závazky) a odběratelů (pohledávky). Data se čtou přímo z SQL přes aplikační server jhn-apps (aplikace „salda“, tajný token jako u Make webhooku) – bez Make scénářů i bez Softr. Dodavatelé: kalendář plateb se skládá z tabulek CLBSaldoDO/DATECSaldoDO v CLB1 (neuhrazené faktury) a Salda_TrvalePrikazy v JHN-PROJECT (trvalé příkazy rozepsané podle frekvence do zvoleného období); tlačítko Trvalé příkazy je upravuje přímo v databázi. Odběratelé: tabulky CLBSaldoOD/DATECSaldoOD, filtr Bez pojišťoven a počet dní po splatnosti. Při výpadku serveru obě agendy zobrazí snapshot ze 14. 7. 2026.",
+  "description": "Sloučený přehled sald pro Centrum (CLB) a Datec — v jedné aplikaci se přepíná mezi agendou dodavatelů (závazky) a odběratelů (pohledávky). Data se čtou přímo z SQL přes aplikační server jhn-apps (aplikace „salda“, tajný token jako u Make webhooku) – bez Make scénářů i bez Softr. Dodavatelé: kalendář plateb se skládá z tabulek CLBSaldoDO/DATECSaldoDO v CLB1 (neuhrazené faktury) a Salda_TrvalePrikazy v CLB1 (trvalé příkazy rozepsané podle frekvence do zvoleného období); tlačítko Trvalé příkazy je upravuje přímo v databázi. Odběratelé: tabulky CLBSaldoOD/DATECSaldoOD, filtr Bez pojišťoven a počet dní po splatnosti. Při výpadku serveru obě agendy zobrazí snapshot ze 14. 7. 2026.",
   "mcpTools": [],
   "mcpServerNames": []
 }
@@ -448,7 +448,7 @@
       </div>
     </div>
 
-    <footer id="d-footer">Zdroj: SQL CLB1 – tabulky CLBSaldoDO / DATECSaldoDO (neuhrazené faktury dodavatelů) a JHN-PROJECT – tabulka Salda_TrvalePrikazy (trvalé příkazy), načítané přes aplikační server jhn-apps. Trvalé příkazy se do kalendáře rozepisují podle frekvence od dnešního dne; pravidelný příjem je v tabulce TP uložen jako záporná částka.</footer>
+    <footer id="d-footer">Zdroj: SQL CLB1 – tabulky CLBSaldoDO / DATECSaldoDO (neuhrazené faktury dodavatelů) a Salda_TrvalePrikazy (trvalé příkazy), načítané přes aplikační server jhn-apps. Trvalé příkazy se do kalendáře rozepisují podle frekvence od dnešního dne; pravidelný příjem je v tabulce TP uložen jako záporná částka.</footer>
   </div>
   </section>
 
@@ -587,8 +587,8 @@ const store = {
 /* ================= aplikační server jhn-apps – data přímo z SQL (bez Make) =================
    Dashboard volá aplikaci „salda" (jhn-apps/apps/salda.js) stejně, jako SQL Studio volá „sql-studio":
    GET/POST https://<server>/api/apps/salda?token=…  (tajný token aplikace = model Make webhooku).
-   Aplikace čte saldokonto z CLB1 (CLBSaldoDO/OD, DATECSaldoDO/OD) a trvalé příkazy z JHN-PROJECT
-   (Salda_TrvalePrikazy). Origin tohoto webu musí být na serveru v CORS_ORIGINS. */
+   Aplikace čte saldokonto z CLB1 (CLBSaldoDO/OD, DATECSaldoDO/OD) a trvalé příkazy z tabulky CLB1
+   Salda_TrvalePrikazy. Origin tohoto webu musí být na serveru v CORS_ORIGINS. */
 const API = {
   base: "https://95-216-201-2.sslip.io",   // adresa aplikačního serveru jhn-apps (stejná jako v SQL Studiu)
   app: "salda",
@@ -1029,7 +1029,7 @@ function parseVystup(text, entity) {
 /* ================= živá data: SQL přes aplikační server =================
    Kalendář plateb se skládá přímo z dat databáze (dříve ho přes SQL tabulku Platby přepočítával Make scénář):
    - CLBSaldoDO / DATECSaldoDO (CLB1) … neuhrazené faktury dodavatelů (Název, Saldo 1, Datum splatnosti) → položky SA
-   - Salda_TrvalePrikazy (JHN-PROJECT) … trvalé příkazy; do zvoleného období se rozepíší podle frekvence,
+   - Salda_TrvalePrikazy (CLB1) … trvalé příkazy; do zvoleného období se rozepíší podle frekvence,
      počínaje dneškem (kladná částka = výdaj TP, záporná = pravidelný příjem PR)
    Při chybě se použije vestavěný snapshot. */
 function tpRecord(r) {

@@ -1,5 +1,5 @@
 -- Aplikace „salda" (dashboard Salda Centrum & Datec): trvalé příkazy, které dřív žily v Softr tabulkách TPCLB / TPDATEC.
--- Databáze: JHN-PROJECT (spojení jhn). Idempotentní – lze spouštět opakovaně. Seed se vloží jen do prázdné tabulky.
+-- Databáze: CLB1 (spojení clb1, login clb1_app má db_ddladmin). Idempotentní – lze spouštět opakovaně. Seed se vloží jen do prázdné tabulky.
 IF OBJECT_ID('dbo.Salda_TrvalePrikazy') IS NULL
 CREATE TABLE dbo.Salda_TrvalePrikazy (
   Id          int IDENTITY(1,1) PRIMARY KEY,

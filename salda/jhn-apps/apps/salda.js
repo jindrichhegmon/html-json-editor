@@ -3,9 +3,9 @@
  * „Salda dodavatelů — Dashboard (webhook)", „Salda odběratelů — Dashboard (webhook)" a „Trvalé příkazy — Údržba (webhook)".
  *
  * Zdroje:
- *   CLB1 (jen čtení): dbo.CLBSaldoDO / dbo.DATECSaldoDO  … neuhrazené faktury dodavatelů (závazky)
- *                     dbo.CLBSaldoOD / dbo.DATECSaldoOD  … pohledávky za odběrateli
- *   JHN-PROJECT:      dbo.Salda_TrvalePrikazy            … trvalé příkazy a pravidelné příjmy (sql/salda.sql), dřív Softr TPCLB / TPDATEC
+ *   CLB1: dbo.CLBSaldoDO / dbo.DATECSaldoDO  … neuhrazené faktury dodavatelů (závazky) – jen čtení
+ *         dbo.CLBSaldoOD / dbo.DATECSaldoOD  … pohledávky za odběrateli – jen čtení
+ *         dbo.Salda_TrvalePrikazy            … trvalé příkazy a pravidelné příjmy (sql/salda.sql), dřív Softr TPCLB / TPDATEC
  *
  * akce = 'prehled'   → faktury (+ odběratelé) obou firem + trvalé příkazy; cast = dodavatele | odberatele | vse
  * akce = 'tp-list'   → jen trvalé příkazy
@@ -42,7 +42,7 @@ const mapSaldo = (r) => ({ nazev: r.nazev, castka: num(r.saldo), splatnost: r.sp
 const mapTp = (r) => ({ id: r.id, firma: r.firma, popis: r.popis, frekvence: r.frekvence, castka: num(r.castka), datum: r.datum });
 
 async function tpList(ctx) {
-  const rows = await ctx.db('jhn').query(`${TP_SELECT} ORDER BY Firma, Popis`);
+  const rows = await ctx.db('clb1').query(`${TP_SELECT} ORDER BY Firma, Popis`);
   const out = { centrum: [], datec: [] };
   for (const r of rows) {
     const key = r.firma === 'DATEC' ? 'datec' : 'centrum';
@@ -66,7 +66,7 @@ function tpValidate(input) {
 
 export default {
   name: 'salda',
-  description: 'Data pro dashboard Salda Centrum & Datec: neuhrazené faktury dodavatelů a pohledávky odběratelů ze saldokonta CLB1 (tabulky CLBSaldoDO/OD, DATECSaldoDO/OD) a údržba trvalých příkazů (tabulka Salda_TrvalePrikazy v JHN-PROJECT).',
+  description: 'Data pro dashboard Salda Centrum & Datec: neuhrazené faktury dodavatelů a pohledávky odběratelů ze saldokonta CLB1 (tabulky CLBSaldoDO/OD, DATECSaldoDO/OD) a údržba trvalých příkazů (tabulka Salda_TrvalePrikazy v CLB1).',
   // Volání z prohlížeče (web saldododavatele.netlify.app) – jako Make webhook s tajnou URL; origin webu musí být v CORS_ORIGINS.
   publicToken: 'salda-19a958511fd856d6',
   input: {
@@ -104,7 +104,7 @@ export default {
     // údržba trvalých příkazů
     if (!input.firma) throw new Error('Chybí firma (centrum | datec).');
     const kod = FIRMY[input.firma].kod;
-    const d = ctx.db('jhn');
+    const d = ctx.db('clb1');
 
     if (akce === 'tp-create') {
       const v = tpValidate(input);

@@ -28,7 +28,7 @@ const db = (name) => ({
     throw new Error('neočekávaný exec: ' + sql);
   },
 });
-const ctx = { db, log: () => {}, trigger: 'test', databases: () => ['jhn', 'clb1'] };
+const ctx = { db, log: () => {}, trigger: 'test', databases: () => ['clb1'] };
 const run = (input) => app.run(schema.parse(input), ctx);
 
 // prehled
@@ -38,8 +38,8 @@ assert.equal(r.firmy.centrum.faktury[0].castka, -21703.52);
 assert.equal(r.firmy.centrum.odberatele[0].castka, 85234);
 assert.equal(r.firmy.datec.odberatele[0].castka, -1158.84);
 assert.equal(r.firmy.centrum.tp.length, 1); assert.equal(r.firmy.datec.tp.length, 1);
-assert.ok(calls.every(c => (c.name === 'clb1') === /Saldo/.test(c.sql)), 'saldokonto jen z clb1, TP jen z jhn');
-assert.ok(!calls.some(c => c.name === 'clb1' && /INSERT|UPDATE|DELETE/.test(c.sql)), 'do clb1 se nikdy nezapisuje');
+assert.ok(calls.every(c => c.name === 'clb1'), 'vše ze spojení clb1');
+assert.ok(!calls.some(c => /Saldo(DO|OD)/.test(c.sql) && /INSERT|UPDATE|DELETE/.test(c.sql)), 'do saldokonta se nikdy nezapisuje');
 
 // jen dodavatelé – bez dotazů na SaldoOD
 calls.length = 0;
