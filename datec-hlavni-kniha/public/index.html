@@ -87,6 +87,15 @@
   .seg button:hover { color: var(--text-primary); }
   .seg button[aria-pressed="true"] { background: var(--btn-blue); color: #ffffff; font-weight: 600; }
   .custom-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .year-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .year-pick select {
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--text-primary);
+    padding: 6px 28px 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1);
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+  }
+  .year-pick select:focus { outline: 2px solid var(--btn-blue); outline-offset: 1px; }
   .custom-range input {
     font: inherit; font-size: 12px; color: var(--text-primary);
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px;
@@ -253,9 +262,9 @@
       <button data-entity="clb" aria-pressed="true">Centrum</button>
       <button data-entity="datec" aria-pressed="false">Datec</button>
     </div>
+    <label class="year-pick">Rok <select id="yearSel" aria-label="Rok"></select></label>
     <div class="seg" id="rangeSeg" role="group" aria-label="Období">
-      <button data-range="thisYear" aria-pressed="true">Tento rok</button>
-      <button data-range="lastYear" aria-pressed="false">Minulý rok</button>
+      <button data-range="year" aria-pressed="true">Celý rok</button>
       <button data-range="thisMonth" aria-pressed="false">Tento měsíc</button>
       <button data-range="last3" aria-pressed="false">Poslední 3 měsíce</button>
     </div>
@@ -375,7 +384,8 @@ const state = {
   cmpSearch: "",
   cmpOpen: {},
   entity: "clb",
-  rangePreset: "thisYear",
+  rangePreset: "year",
+  rok: new Date().getFullYear(),      // vybraný rok: porovnání let = rok−1 a rok, „Celý rok“ = 1. 1. – 31. 12.
   from: null, to: null,
   classFilter: "all",
   search: "",
@@ -393,10 +403,32 @@ function iso(d) {
 }
 function presetRange(preset) {
   const now = new Date();
-  if (preset === "lastYear")  return [iso(new Date(now.getFullYear() - 1, 0, 1)), iso(new Date(now.getFullYear() - 1, 11, 31))];
   if (preset === "thisMonth") return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), iso(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
   if (preset === "last3")     return [iso(new Date(now.getFullYear(), now.getMonth() - 2, 1)), iso(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
-  return [iso(new Date(now.getFullYear(), 0, 1)), iso(new Date(now.getFullYear(), 11, 31))];   /* thisYear */
+  return [iso(new Date(state.rok, 0, 1)), iso(new Date(state.rok, 11, 31))];   /* year = celý vybraný rok */
+}
+/* výběr roku: od letoška zpět po první rok s daty v Heliosu */
+const FIRST_YEAR = 2021;
+function buildYearSelect() {
+  const sel = document.getElementById("yearSel");
+  sel.replaceChildren();
+  for (let y = new Date().getFullYear(); y >= FIRST_YEAR; y--) {
+    const o = document.createElement("option"); o.value = String(y); o.textContent = String(y);
+    sel.appendChild(o);
+  }
+  sel.value = String(state.rok);
+}
+function setYear(y) {
+  state.rok = y;
+  document.getElementById("yearSel").value = String(y);
+}
+function applyPreset(preset) {
+  state.rangePreset = preset;
+  const [f, t] = presetRange(preset);
+  state.from = f; state.to = t;
+  document.getElementById("fromInput").value = f;
+  document.getElementById("toInput").value = t;
+  for (const b of document.querySelectorAll("#rangeSeg button")) b.setAttribute("aria-pressed", String(b.dataset.range === preset));
 }
 
 /* ================= data loading ================= */
@@ -413,7 +445,7 @@ async function loadData() {
   const entity = state.entity, from = state.from, to = state.to;
   let data = null, error = null;
   try {
-    data = await callApi("/api/prehled", { firma: API_FIRMA[entity], od: from, do: to, rok: new Date().getFullYear() });
+    data = await callApi("/api/prehled", { firma: API_FIRMA[entity], od: from, do: to, rok: state.rok });
   } catch (e) {
     error = e && e.message ? e.message : String(e);
   }
@@ -794,7 +826,7 @@ function renderCompare() {
   head.replaceChildren(); body.replaceChildren();
   const years = cmpYears();
   document.getElementById("cmpTitle").textContent =
-    "Porovnání let " + (years.length ? years.join(" – ") : "") + " — nákladové (5) a výnosové (6) účty · " + ENTITY_LABEL[state.entity];
+    "Porovnání let " + (state.rok - 1) + " – " + state.rok + " — nákladové (5) a výnosové (6) účty · " + ENTITY_LABEL[state.entity];
 
   /* hlavička */
   const trH = document.createElement("tr");
@@ -994,11 +1026,13 @@ document.getElementById("cmpToggleAll").addEventListener("click", () => {
 });
 wireSeg("classSeg", "cls", v => { state.classFilter = v; state.expanded = null; renderTable(); });
 wireSeg("rangeSeg", "range", v => {
-  state.rangePreset = v;
-  const [f, t] = presetRange(v);
-  state.from = f; state.to = t;
-  document.getElementById("fromInput").value = f;
-  document.getElementById("toInput").value = t;
+  if (v !== "year") setYear(new Date().getFullYear());   // „tento měsíc“ a „poslední 3 měsíce“ jsou vždy letos
+  applyPreset(v);
+  loadData();
+});
+document.getElementById("yearSel").addEventListener("change", e => {
+  setYear(Number(e.target.value));
+  applyPreset("year");
   loadData();
 });
 document.getElementById("searchInput").addEventListener("input", e => {
@@ -1017,6 +1051,7 @@ function customChanged() {
   if (!f || !t || f > t) return;
   state.from = f; state.to = t; state.rangePreset = null;
   for (const b of document.querySelectorAll("#rangeSeg button")) b.setAttribute("aria-pressed", "false");
+  setYear(Number(t.slice(0, 4)));   // porovnání let podle roku konce období
   loadData();
 }
 document.getElementById("fromInput").addEventListener("change", customChanged);
@@ -1026,10 +1061,8 @@ document.getElementById("refreshBtn").addEventListener("click", () => loadData()
 
 /* ================= start ================= */
 (function startApp() {
-  const [f, t] = presetRange("thisYear");
-  state.from = f; state.to = t;
-  document.getElementById("fromInput").value = f;
-  document.getElementById("toInput").value = t;
+  buildYearSelect();
+  applyPreset("year");
   applyView();
   loadData();
 })();
