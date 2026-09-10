@@ -2,7 +2,7 @@
 {
   "name": "Salda Centrum & Datec",
   "schemaVersion": 1,
-  "description": "Sloučený přehled sald pro Centrum (CLB) a Datec — v jedné aplikaci se přepíná mezi agendou dodavatelů (závazky) a odběratelů (pohledávky). Data se čtou přímo z databáze „DATEC CONSULTING“ (Softr Database, REST API s API klíčem uloženým v prohlížeči) – bez Make scénářů. Dodavatelé: kalendář plateb se skládá z tabulek CLBSADO/DATECSADO (faktury) a TPCLB/TPDATEC (trvalé příkazy rozepsané podle frekvence do zvoleného období); tlačítko Trvalé příkazy je upravuje přímo v databázi. Odběratelé: tabulky CLBSAOD/DATECSAOD, filtr Bez pojišťoven a počet dní po splatnosti. Bez API klíče nebo při výpadku obě agendy zobrazí snapshot ze 14. 7. 2026.",
+  "description": "Sloučený přehled sald pro Centrum (CLB) a Datec — v jedné aplikaci se přepíná mezi agendou dodavatelů (závazky) a odběratelů (pohledávky). Data se čtou přímo z SQL přes aplikační server jhn-apps (aplikace „salda“, tajný token jako u Make webhooku) – bez Make scénářů i bez Softr. Dodavatelé: kalendář plateb se skládá z tabulek CLBSaldoDO/DATECSaldoDO v CLB1 (neuhrazené faktury) a Salda_TrvalePrikazy v JHN-PROJECT (trvalé příkazy rozepsané podle frekvence do zvoleného období); tlačítko Trvalé příkazy je upravuje přímo v databázi. Odběratelé: tabulky CLBSaldoOD/DATECSaldoOD, filtr Bez pojišťoven a počet dní po splatnosti. Při výpadku serveru obě agendy zobrazí snapshot ze 14. 7. 2026.",
   "mcpTools": [],
   "mcpServerNames": []
 }
@@ -290,28 +290,6 @@
   .tp-act button:hover { text-decoration: underline; }
   .tp-footer { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
   .tp-note { flex: 1; font-size: 12px; color: var(--text-secondary); min-width: 180px; }
-  /* ---------- připojení k databázi (modal) ---------- */
-  #dbModal {
-    position: fixed; inset: 0; z-index: 95;
-    background: rgba(0,0,0,.38);
-    display: flex; align-items: flex-start; justify-content: center;
-    padding: 8vh 12px; overflow-y: auto;
-  }
-  #dbModal.hidden { display: none; }
-  .db-card { max-width: 560px; }
-  .db-text { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 12px; }
-  .db-text code { font-size: 12px; }
-  .db-label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
-  .db-label input {
-    display: block; width: 100%; box-sizing: border-box; margin-top: 4px;
-    font: inherit; font-size: 13px; letter-spacing: .06em; padding: 8px 10px;
-    border: 1px solid var(--border); border-radius: 8px; background: var(--page); color: var(--text-primary);
-  }
-  .db-label input:focus { outline: 2px solid var(--btn-blue); outline-offset: 1px; }
-  .db-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; }
-  #dbSaveBtn { background: #123f7a; border-color: #123f7a; color: #ffffff; font-weight: 600; }
-  #dbSaveBtn:hover { background: #1a5399; border-color: #1a5399; }
-  .apptabs #dbBtn { margin-left: auto; font-weight: 500; }
 
 
   /* ---------- přepínač agend ---------- */
@@ -394,7 +372,6 @@
   <nav class="apptabs" id="appTabs" aria-label="Agenda">
     <button type="button" data-mode="dod" aria-pressed="true">Dodavatelé — závazky</button>
     <button type="button" data-mode="odb" aria-pressed="false">Odběratelé — pohledávky</button>
-    <button type="button" id="dbBtn" title="Nastavení připojení k Softr Database">⚙ Databáze</button>
   </nav>
   <section class="panel" id="panel-dod">
 
@@ -471,7 +448,7 @@
       </div>
     </div>
 
-    <footer id="d-footer">Zdroj: Softr Database „DATEC CONSULTING“ – tabulky CLBSADO / DATECSADO (neuhrazené faktury dodavatelů, saldokonto CLB / DATEC) a TPCLB / TPDATEC (trvalé příkazy). Trvalé příkazy se do kalendáře rozepisují podle frekvence od dnešního dne; pravidelný příjem je v tabulce TP uložen jako záporná částka.</footer>
+    <footer id="d-footer">Zdroj: SQL CLB1 – tabulky CLBSaldoDO / DATECSaldoDO (neuhrazené faktury dodavatelů) a JHN-PROJECT – tabulka Salda_TrvalePrikazy (trvalé příkazy), načítané přes aplikační server jhn-apps. Trvalé příkazy se do kalendáře rozepisují podle frekvence od dnešního dne; pravidelný příjem je v tabulce TP uložen jako záporná částka.</footer>
   </div>
   </section>
 
@@ -545,7 +522,7 @@
       </div>
     </div>
 
-    <footer id="o-footer">Zdroj: Softr Database „DATEC CONSULTING“ – tabulky CLBSAOD / DATECSAOD (saldokonto odběratelů CLB / DATEC). Záporná částka = přeplatek / dobropis (závazek vůči odběrateli).</footer>
+    <footer id="o-footer">Zdroj: SQL CLB1 – tabulky CLBSaldoOD / DATECSaldoOD (saldokonto odběratelů CLB / DATEC), načítané přes aplikační server jhn-apps. Záporná částka = přeplatek / dobropis (závazek vůči odběrateli).</footer>
   </div>
   </section>
 </div>
@@ -595,27 +572,6 @@
   </div>
 </div>
 
-<div id="dbModal" class="hidden">
-  <div class="tp-card db-card" role="dialog" aria-label="Připojení k databázi">
-    <div class="tp-head">
-      <h2>Připojení k Softr Database</h2>
-      <button class="tp-close" id="dbClose" aria-label="Zavřít">×</button>
-    </div>
-    <p class="db-text">Data se čtou a zapisují přímo v databázi „DATEC CONSULTING“ (Softr Database), bez Make scénářů. Vložte API klíč Softr (Workspace settings → API keys). Klíč se ukládá jen v tomto prohlížeči a posílá se pouze na <code>tables-api.softr.io</code>.</p>
-    <label class="db-label">API klíč
-      <input id="dbKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="Softr-Api-Key">
-    </label>
-    <div class="tp-status" id="dbStatus"></div>
-    <div class="tp-footer">
-      <button class="btn" id="dbTestBtn">Otestovat připojení</button>
-      <button class="btn" id="dbClearBtn">Odebrat klíč</button>
-      <span class="spacer"></span>
-      <button class="btn" id="dbSaveBtn">Uložit a načíst data</button>
-    </div>
-    <div class="db-meta">Tabulky: CLBSADO / DATECSADO (faktury dodavatelů), TPCLB / TPDATEC (trvalé příkazy), CLBSAOD / DATECSAOD (odběratelé).</div>
-  </div>
-</div>
-
 <script>
 "use strict";
 
@@ -628,103 +584,57 @@ const store = {
   remove(k) { try { window.localStorage.removeItem(k); } catch (e) { /* prohlížeč úložiště nedovolil */ } }
 };
 
-/* ================= Softr Database – přímé napojení (bez Make scénářů) =================
-   Data se čtou i zapisují přímo přes REST API Softr Database (databáze „DATEC CONSULTING“).
-   Klíče polí jsou ID sloupců v Softr Database (v API se používají místo názvů sloupců). */
-const DB = {
-  base: "https://tables-api.softr.io/api/v1",
-  databaseId: "89c93f5d-d0d6-4236-b3a9-f17657f2bdd4",
-  storageKey: "saldaSoftrApiKey_v1",
-  timeoutMs: 60000,
-  pageSize: 200,
-  tables: {
-    centrum: {
-      sado: { id: "Wrv6DP3VZRdj6A", label: "CLBSADO",   name: "GHxbV", amount: "A9Weu", due: "Y6fq5" },
-      saod: { id: "TZrumRA63hOvtP", label: "CLBSAOD",   name: "USblQ", amount: "7vf6i", due: "o3kzS" },
-      tp:   { id: "zS61x6RFnkDDhP", label: "TPCLB",     name: "Anofq", freq: "jotZQ", amount: "WdF0g", due: "8UBn2" }
-    },
-    datec: {
-      sado: { id: "jlGI04b845QuGg", label: "DATECSADO", name: "J1z10", amount: "aSi2c", due: "vX6X9" },
-      saod: { id: "JYM9Khfynj7b4E", label: "DATECSAOD", name: "43l79", amount: "jjxAq", due: "Ms8GD" },
-      tp:   { id: "sGtUtQ555woh3m", label: "TPDATEC",   name: "10uJt", freq: "GIWq0", amount: "qw3Z5", due: "kccvt" }
-    }
-  }
+/* ================= aplikační server jhn-apps – data přímo z SQL (bez Make) =================
+   Dashboard volá aplikaci „salda" (jhn-apps/apps/salda.js) stejně, jako SQL Studio volá „sql-studio":
+   GET/POST https://<server>/api/apps/salda?token=…  (tajný token aplikace = model Make webhooku).
+   Aplikace čte saldokonto z CLB1 (CLBSaldoDO/OD, DATECSaldoDO/OD) a trvalé příkazy z JHN-PROJECT
+   (Salda_TrvalePrikazy). Origin tohoto webu musí být na serveru v CORS_ORIGINS. */
+const API = {
+  base: "https://95-216-201-2.sslip.io",   // adresa aplikačního serveru jhn-apps (stejná jako v SQL Studiu)
+  app: "salda",
+  token: "salda-19a958511fd856d6",         // publicToken v jhn-apps/apps/salda.js
+  timeoutMs: 60000
 };
 
-const db = {
-  key() { return String(store.get(DB.storageKey) || "").trim(); },
-  hasKey() { return this.key().length > 0; },
-  path(tableId, recordId) {
-    return "/databases/" + DB.databaseId + "/tables/" + tableId + "/records" + (recordId ? "/" + encodeURIComponent(recordId) : "");
+const api = {
+  url(params) {
+    const u = new URL(API.base + "/api/apps/" + API.app);
+    u.searchParams.set("token", API.token);
+    for (const [k, v] of Object.entries(params || {})) if (v != null && v !== "") u.searchParams.set(k, String(v));
+    return u.toString();
   },
-  async request(method, path, body, keyOverride) {
-    const key = keyOverride != null ? String(keyOverride).trim() : this.key();
-    if (!key) {
-      const err = new Error("Není zadán API klíč Softr Database (tlačítko „Databáze“ vpravo nahoře).");
-      err.noKey = true;
-      throw err;
-    }
-    const headers = { "Softr-Api-Key": key, "Accept": "application/json" };
-    if (body != null) headers["Content-Type"] = "application/json";
+  async call(params, body) {
     const ctrl = ("AbortController" in window) ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), DB.timeoutMs) : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), API.timeoutMs) : null;
     let resp, text;
     try {
-      resp = await fetch(DB.base + path, {
-        method, headers, cache: "no-store",
-        body: body != null ? JSON.stringify(body) : undefined,
+      resp = await fetch(this.url(params), {
+        method: body ? "POST" : "GET",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+        cache: "no-store",
         signal: ctrl ? ctrl.signal : undefined
       });
       text = await resp.text();
     } catch (e) {
-      if (e && e.name === "AbortError") throw new Error("Vypršel časový limit (" + Math.round(DB.timeoutMs / 1000) + " s) – Softr Database neodpověděla včas.");
-      throw new Error("Síťová chyba při volání Softr Database (" + (e && e.message ? e.message : String(e)) +
-        "). Zkontrolujte připojení k internetu; pokud chyba trvá, API pravděpodobně odmítá volání z prohlížeče (CORS).");
+      if (e && e.name === "AbortError") throw new Error("Vypršel časový limit (" + Math.round(API.timeoutMs / 1000) + " s) – aplikační server neodpověděl včas.");
+      throw new Error("Aplikační server jhn-apps (" + API.base + ") není dostupný: " + (e && e.message ? e.message : String(e)) +
+        ". Zkontrolujte připojení; pokud chyba trvá, ověřte, že server běží a že je adresa tohoto webu v CORS_ORIGINS.");
     } finally {
       if (timer) clearTimeout(timer);
     }
-    if (resp.status === 401 || resp.status === 403) {
-      throw new Error("Softr Database odmítla API klíč (HTTP " + resp.status + "). Zkontrolujte klíč v nastavení „Databáze“.");
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (e) { /* ne-JSON odpověď – ošetří se níže */ }
+    if (resp.status === 401) throw new Error("Aplikační server odmítl token aplikace „salda“ (HTTP 401) – zkontrolujte publicToken v jhn-apps/apps/salda.js.");
+    if (!resp.ok || !data || data.ok !== true) {
+      throw new Error((data && data.error) ? String(data.error) : "HTTP " + resp.status + " – " + String(text || "").slice(0, 160));
     }
-    if (!resp.ok) throw new Error("HTTP " + resp.status + " – " + String(text || "").slice(0, 160));
-    if (!text) return null;
-    try { return JSON.parse(text); }
-    catch (e) { throw new Error("Neočekávaná odpověď Softr Database: " + String(text).slice(0, 120)); }
+    return data.result;
   },
-  /* odpověď API: { data: [...], metadata: { offset, limit, total } } – pro jistotu přijmeme i { records, total } */
-  rows(r) { return (r && (Array.isArray(r.data) ? r.data : Array.isArray(r.records) ? r.records : null)) || []; },
-  total(r) {
-    if (r && r.metadata && typeof r.metadata.total === "number") return r.metadata.total;
-    if (r && typeof r.total === "number") return r.total;
-    return null;
-  },
-  async listAll(tableId) {
-    const out = [];
-    let offset = 0;
-    for (let page = 0; page < 100; page++) {
-      const r = await this.request("GET", this.path(tableId) + "?limit=" + DB.pageSize + "&offset=" + offset);
-      const rows = this.rows(r);
-      out.push(...rows);
-      offset += rows.length;
-      const total = this.total(r);
-      if (!rows.length || rows.length < DB.pageSize || (total != null && offset >= total)) break;
-    }
-    return out;
-  },
-  async probe(key) {
-    const r = await this.request("GET", this.path(DB.tables.centrum.tp.id) + "?limit=1", null, key);
-    return this.total(r);
-  },
-  create(tableId, fields) { return this.request("POST", this.path(tableId), { fields }); },
-  update(tableId, recordId, fields) { return this.request("PATCH", this.path(tableId, recordId), { fields }); },
-  remove(tableId, recordId) { return this.request("DELETE", this.path(tableId, recordId)); }
+  get(params) { return this.call(params, null); },
+  post(payload) { return this.call({}, payload); }
 };
 
-/* hodnota pole záznamu (API vrací { id, fields: {…} }) */
-function fieldOf(rec, key) {
-  const f = rec && rec.fields && typeof rec.fields === "object" ? rec.fields : rec;
-  return f ? f[key] : undefined;
-}
 /* datum z databáze → "YYYY-MM-DD"; přijímá "2026-09-14T00:00:00.000Z", "2026-09-14" i "14.09.2026" */
 function toIsoDate(v) {
   if (v == null) return null;
@@ -795,14 +705,12 @@ function tpNextDate(due, freq) {
 }
 
 /* upozornění při přechodu na snapshot */
-function showLoadNotice(noticeEl, snapshotDate, err, noKey) {
+function showLoadNotice(noticeEl, snapshotDate, err) {
   noticeEl.replaceChildren();
-  noticeEl.appendChild(document.createTextNode(noKey
-    ? "Není zadán API klíč Softr Database — zobrazují se data uložená " + fmtDate(snapshotDate) +
-      ". Klikněte na „Databáze“ vpravo nahoře, vložte API klíč a pak na Obnovit."
-    : "Načtení ze Softr Database se nezdařilo — zobrazují se data uložená " + fmtDate(snapshotDate) +
-      ". Zkuste Obnovit; pokud problém trvá, zkontrolujte API klíč v nastavení „Databáze“."));
-  if (!noKey && err) {
+  noticeEl.appendChild(document.createTextNode(
+    "Načtení z databáze (aplikační server jhn-apps) se nezdařilo — zobrazují se data uložená " + fmtDate(snapshotDate) +
+    ". Zkuste Obnovit; pokud problém trvá, zkontrolujte, že server jhn-apps běží."));
+  if (err) {
     const det = document.createElement("details");
     det.style.marginTop = "6px";
     const sum = document.createElement("summary");
@@ -1118,42 +1026,42 @@ function parseVystup(text, entity) {
   return items;
 }
 
-/* ================= živá data: Softr Database =================
-   Kalendář plateb se skládá přímo z tabulek databáze (dříve ho přes SQL přepočítával Make scénář):
-   - CLBSADO / DATECSADO … neuhrazené faktury dodavatelů (Název, Saldo 1, Datum splatnosti) → položky SA
-   - TPCLB / TPDATEC     … trvalé příkazy; do zvoleného období se rozepíší podle frekvence,
-                           počínaje dneškem (kladná částka = výdaj TP, záporná = pravidelný příjem PR)
-   Bez API klíče nebo při chybě se použije vestavěný snapshot. */
-function tpRecord(r, T) {
-  if (!r || !r.id) return null;
-  const raw = toNumber(fieldOf(r, T.amount));
+/* ================= živá data: SQL přes aplikační server =================
+   Kalendář plateb se skládá přímo z dat databáze (dříve ho přes SQL tabulku Platby přepočítával Make scénář):
+   - CLBSaldoDO / DATECSaldoDO (CLB1) … neuhrazené faktury dodavatelů (Název, Saldo 1, Datum splatnosti) → položky SA
+   - Salda_TrvalePrikazy (JHN-PROJECT) … trvalé příkazy; do zvoleného období se rozepíší podle frekvence,
+     počínaje dneškem (kladná částka = výdaj TP, záporná = pravidelný příjem PR)
+   Při chybě se použije vestavěný snapshot. */
+function tpRecord(r) {
+  if (!r || r.id == null) return null;
+  const raw = toNumber(r.castka);
   return {
     id: String(r.id),
-    name: String(fieldOf(r, T.name) || "").trim(),
-    freq: String(fieldOf(r, T.freq) || "").trim(),
+    name: String(r.popis || "").trim(),
+    freq: String(r.frekvence || "").trim(),
     amount: isFinite(raw) ? Math.abs(raw) : 0,
     typ: isFinite(raw) && raw < 0 ? "PR" : "TP",
-    due: toIsoDate(fieldOf(r, T.due)) || ""
+    due: toIsoDate(r.datum) || ""
   };
 }
 
 async function fetchDb(from, to) {
   const today = iso(new Date());
   const tpFrom = from > today ? from : today;   // trvalé příkazy jen od dneška (stejně jako dřívější kalendář)
+  const r = await api.get({ akce: "prehled", cast: "dodavatele" });
   const result = { centrum: [], datec: [], tp: { centrum: [], datec: [] } };
-  await Promise.all(["centrum", "datec"].map(async ent => {
-    const T = DB.tables[ent];
-    const [sado, tp] = await Promise.all([db.listAll(T.sado.id), db.listAll(T.tp.id)]);
+  for (const ent of ["centrum", "datec"]) {
+    const f = r && r.firmy ? r.firmy[ent] : null;
+    if (!f) throw new Error("Odpověď serveru neobsahuje data firmy " + ENTITY_LABEL[ent] + ".");
     const items = [];
-    for (const r of sado) {
-      const raw = toNumber(fieldOf(r, T.sado.amount));
-      const due = toIsoDate(fieldOf(r, T.sado.due));
-      const name = String(fieldOf(r, T.sado.name) || "").trim();
+    for (const row of f.faktury || []) {
+      const raw = toNumber(row.castka);
+      const due = toIsoDate(row.splatnost);
       if (!isFinite(raw) || raw === 0 || !due) continue;
       if (due < from || due > to) continue;
-      items.push({ kind: "SA", name: name || "(bez názvu)", freq: "", amount: Math.abs(raw), due, entity: ent });
+      items.push({ kind: "SA", name: String(row.nazev || "").trim() || "(bez názvu)", freq: "", amount: Math.abs(raw), due, entity: ent });
     }
-    const tpRows = tp.map(r => tpRecord(r, T.tp)).filter(Boolean);
+    const tpRows = (f.tp || []).map(tpRecord).filter(Boolean);
     for (const rec of tpRows) {
       if (!rec.amount) continue;
       for (const due of tpOccurrences(rec.due, rec.freq, tpFrom, to)) {
@@ -1162,7 +1070,7 @@ async function fetchDb(from, to) {
     }
     result[ent] = items;
     result.tp[ent] = tpRows;
-  }));
+  }
   return result;
 }
 
@@ -1207,7 +1115,7 @@ async function loadData() {
   setStatus("snap", "načítám…");
 
   const from = state.from, to = state.to;
-  let live = true, liveError = null, noKey = false, tpRows = null;
+  let live = true, liveError = null, tpRows = null;
   const result = { centrum: [], datec: [] };
   try {
     const r = await fetchDb(from, to);
@@ -1216,7 +1124,6 @@ async function loadData() {
     tpRows = r.tp;
   } catch (e) {
     live = false;
-    noKey = !!(e && e.noKey);
     liveError = e && e.message ? e.message : String(e);
   }
   if (!live) {
@@ -1238,10 +1145,10 @@ async function loadData() {
   const notice = document.getElementById("d-notice");
   if (live) {
     notice.classList.add("hidden");
-    setStatus("live", "Živá data ze Softr Database · " + state.lastUpdated.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }));
+    setStatus("live", "Živá data z SQL (jhn-apps) · " + state.lastUpdated.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }));
   } else {
     setStatus("snap", "Snapshot ze " + fmtDate(SNAPSHOT_DATE));
-    showLoadNotice(notice, SNAPSHOT_DATE, liveError, noKey);
+    showLoadNotice(notice, SNAPSHOT_DATE, liveError);
   }
   render();
 }
@@ -1477,7 +1384,7 @@ document.getElementById("d-fromInput").addEventListener("change", customChanged)
 document.getElementById("d-toInput").addEventListener("change", customChanged);
 document.getElementById("d-refreshBtn").addEventListener("click", () => loadData());
 
-/* ================= údržba trvalých příkazů (přímo v tabulkách TPCLB / TPDATEC) ================= */
+/* ================= údržba trvalých příkazů (tabulka Salda_TrvalePrikazy přes aplikační server) ================= */
 const TP_FREQS = ["Měsíční", "Čtvrtletní", "Pololetní", "Roční", "Týdenní", "14 dní", "Jednorázově"];
 const tpState = { firma: "centrum", data: { centrum: [], datec: [] }, loaded: false, busy: false, editingId: null, adding: false, addTyp: "TP", confirmId: null };
 const TP_TYP_LABEL = { TP: "Výdaj", PR: "Příjem" };
@@ -1514,12 +1421,9 @@ function tpHint() {
 
 /* načtení trvalých příkazů obou firem z databáze */
 async function tpFetchList() {
-  const out = { centrum: [], datec: [] };
-  await Promise.all(Object.keys(out).map(async ent => {
-    const T = DB.tables[ent].tp;
-    out[ent] = (await db.listAll(T.id)).map(r => tpRecord(r, T)).filter(Boolean);
-  }));
-  return out;
+  const r = await api.get({ akce: "tp-list" });
+  const tp = r && r.tp ? r.tp : {};
+  return { centrum: (tp.centrum || []).map(tpRecord).filter(Boolean), datec: (tp.datec || []).map(tpRecord).filter(Boolean) };
 }
 /* přehled načetl trvalé příkazy spolu s kalendářem – převezmeme je, pokud se v editoru zrovna nepracuje */
 function tpRefreshFromDashboard(rows) {
@@ -1625,20 +1529,15 @@ async function tpSubmit(akce, rec) {
   if (tpState.busy) return;
   tpState.busy = true;
   tpSetStatus(akce === "create" ? (rec.amount < 0 ? "Ukládám nový příjem…" : "Ukládám nový příkaz…") : akce === "update" ? "Ukládám změny…" : "Mažu…");
-  const T = DB.tables[tpState.firma].tp;
   try {
     let retId = "";
     if (akce === "delete") {
-      await db.remove(T.id, rec.id);
+      await api.post({ akce: "tp-delete", firma: tpState.firma, id: rec.id });
     } else {
-      const fields = {};
-      fields[T.name] = rec.name;
-      fields[T.freq] = rec.freq;
-      fields[T.amount] = rec.amount;
-      fields[T.due] = rec.due;
-      const r = akce === "create" ? await db.create(T.id, fields) : await db.update(T.id, rec.id, fields);
-      const saved = r && (r.data && !Array.isArray(r.data) ? r.data : r);
-      retId = saved && saved.id ? String(saved.id) : "";
+      const payload = { akce: akce === "create" ? "tp-create" : "tp-update", firma: tpState.firma, popis: rec.name, frekvence: rec.freq, castka: rec.amount, datum: rec.due };
+      if (akce === "update") payload.id = rec.id;
+      const r = await api.post(payload);
+      retId = r && r.id != null ? String(r.id) : "";
     }
     tpState.editingId = null; tpState.adding = false; tpState.confirmId = null;
     tpState.busy = false;
@@ -2072,25 +1971,26 @@ function overdueDays(due) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-/* ================= živá data: Softr Database ================= */
-/* Saldokonto odběratelů se čte přímo z tabulek CLBSAOD / DATECSAOD (Název, Saldo 1, Datum splatnosti).
-   Bez API klíče nebo při chybě se použije vestavěný snapshot. */
+/* ================= živá data: SQL přes aplikační server ================= */
+/* Saldokonto odběratelů se čte z tabulek CLBSaldoOD / DATECSaldoOD (CLB1) – Název, Saldo 1, Datum splatnosti.
+   Při chybě se použije vestavěný snapshot. */
 async function fetchDb() {
   const today = todayIso();
+  const r = await api.get({ akce: "prehled", cast: "odberatele" });
   const result = { centrum: [], datec: [] };
-  await Promise.all(["centrum", "datec"].map(async ent => {
-    const T = DB.tables[ent].saod;
+  for (const ent of ["centrum", "datec"]) {
+    const f = r && r.firmy ? r.firmy[ent] : null;
+    if (!f) throw new Error("Odpověď serveru neobsahuje data firmy " + ENTITY_LABEL[ent] + ".");
     const items = [];
-    for (const r of await db.listAll(T.id)) {
-      const amount = toNumber(fieldOf(r, T.amount));   // signed: minus = přeplatek/dobropis
-      const due = toIsoDate(fieldOf(r, T.due));
-      const name = String(fieldOf(r, T.name) || "").trim();
+    for (const row of f.odberatele || []) {
+      const amount = toNumber(row.castka);              // signed: minus = přeplatek/dobropis
+      const due = toIsoDate(row.splatnost);
       if (!isFinite(amount) || amount === 0 || !due) continue;
-      const kind = due < today ? "PO" : "OK";          // PO = po splatnosti, OK = ve splatnosti
-      items.push({ kind, name: name || "(bez názvu)", amount, due, entity: ent });
+      const kind = due < today ? "PO" : "OK";           // PO = po splatnosti, OK = ve splatnosti
+      items.push({ kind, name: String(row.nazev || "").replace(/\s*\n\s*/g, " — ").trim() || "(bez názvu)", amount, due, entity: ent });
     }
     result[ent] = items;
-  }));
+  }
   return result;
 }
 
@@ -2116,7 +2016,7 @@ async function loadData() {
   btn.disabled = true;
   setStatus("snap", "načítám…");
 
-  let live = true, liveError = null, noKey = false;
+  let live = true, liveError = null;
   const result = { centrum: [], datec: [] };
   try {
     const r = await fetchDb();
@@ -2124,7 +2024,6 @@ async function loadData() {
     result.datec = r.datec;
   } catch (e) {
     live = false;
-    noKey = !!(e && e.noKey);
     liveError = e && e.message ? e.message : String(e);
   }
   if (!live) {
@@ -2143,10 +2042,10 @@ async function loadData() {
   const notice = document.getElementById("o-notice");
   if (live) {
     notice.classList.add("hidden");
-    setStatus("live", "Živá data ze Softr Database · " + state.lastUpdated.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }));
+    setStatus("live", "Živá data z SQL (jhn-apps) · " + state.lastUpdated.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }));
   } else {
     setStatus("snap", "Snapshot ze " + fmtDate(SNAPSHOT_DATE));
-    showLoadNotice(notice, SNAPSHOT_DATE, liveError, noKey);
+    showLoadNotice(notice, SNAPSHOT_DATE, liveError);
   }
   render();
 }
@@ -2448,57 +2347,9 @@ document.getElementById("appTabs").addEventListener("click", e => {
   if (btn && btn.dataset.mode) showMode(btn.dataset.mode);
 });
 
-/* ================= nastavení připojení k databázi ================= */
-const dbModal = document.getElementById("dbModal");
-const dbKeyInput = document.getElementById("dbKeyInput");
-const dbStatusEl = document.getElementById("dbStatus");
-function dbSetStatus(msg, isErr) { dbStatusEl.textContent = msg || ""; dbStatusEl.classList.toggle("err", !!isErr); }
-function dbOpen() {
-  dbKeyInput.value = db.key();
-  dbSetStatus(db.hasKey() ? "API klíč je uložen v tomto prohlížeči." : "API klíč zatím není zadán – bez něj se zobrazuje jen snapshot.");
-  dbModal.classList.remove("hidden");
-  dbKeyInput.focus();
-}
-function dbClose() { dbModal.classList.add("hidden"); }
-function reloadStartedAgendas() {
-  for (const mode of Object.keys(APPS)) if (started[mode]) APPS[mode].reload();
-}
-document.getElementById("dbBtn").addEventListener("click", dbOpen);
-document.getElementById("dbClose").addEventListener("click", dbClose);
-dbModal.addEventListener("click", e => { if (e.target === dbModal) dbClose(); });
-document.getElementById("dbTestBtn").addEventListener("click", async () => {
-  const key = dbKeyInput.value.trim();
-  if (!key) { dbSetStatus("Vložte API klíč.", true); return; }
-  dbSetStatus("Testuji připojení…");
-  try {
-    const n = await db.probe(key);
-    dbSetStatus("Připojení funguje" + (n != null ? " (tabulka TPCLB: " + n + " záznamů)" : "") + ".");
-  } catch (e) {
-    dbSetStatus("Připojení se nezdařilo: " + (e && e.message ? e.message : e), true);
-  }
-});
-document.getElementById("dbSaveBtn").addEventListener("click", () => {
-  const key = dbKeyInput.value.trim();
-  if (!key) { dbSetStatus("Vložte API klíč (nebo použijte Odebrat klíč).", true); return; }
-  if (!store.set(DB.storageKey, key)) { dbSetStatus("Prohlížeč nedovolil klíč uložit (soukromý režim?).", true); return; }
-  dbClose();
-  reloadStartedAgendas();
-});
-document.getElementById("dbClearBtn").addEventListener("click", () => {
-  store.remove(DB.storageKey);
-  dbKeyInput.value = "";
-  dbSetStatus("API klíč odebrán – přehledy se přepnou na snapshot.");
-  reloadStartedAgendas();
-});
-dbKeyInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") { e.preventDefault(); document.getElementById("dbSaveBtn").click(); }
-  else if (e.key === "Escape") { e.preventDefault(); dbClose(); }
-});
-
 function startApp() {
   document.getElementById("gate").classList.add("hidden");
   showMode(store.get(TAB_KEY) || "dod");
-  if (!db.hasKey()) dbOpen();
 }
 
 (function initGate() {
