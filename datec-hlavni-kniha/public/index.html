@@ -334,6 +334,11 @@
 const ENTITY_LABEL = { clb: "Centrum", datec: "Datec" };
 /* klíč agendy v adresním řádku API (server zná firmy „centrum“ a „datec“) */
 const API_FIRMA = { clb: "centrum", datec: "datec" };
+/* Adresa serveru s API. Prázdná = stejná adresa jako stránka (VPS nebo Netlify s proxy).
+   Když je stránka otevřená jinak (ze souboru, z jiného webu), volá se přímo server na VPS. */
+const API_SERVER = "https://kniha.95-216-201-2.sslip.io";
+const SAME_ORIGIN = location.protocol !== "file:" && /(^|\.)(sslip\.io|netlify\.app)$|^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const API_BASE = SAME_ORIGIN ? "" : API_SERVER;
 
 const CLASS_NAMES = {
   "0": "Dlouhodobý majetek", "1": "Zásoby", "2": "Finanční účty",
@@ -344,14 +349,16 @@ const CLASS_NAMES = {
 /* ================= volání vlastního API (Node server → Helios) ================= */
 async function callApi(path, params) {
   const qs = new URLSearchParams(params).toString();
-  const url = path + (qs ? "?" + qs : "");
+  const url = API_BASE + path + (qs ? "?" + qs : "");
   const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), 60000) : null;
   let resp;
   try {
     resp = await fetch(url, { method: "GET", cache: "no-store", headers: { Accept: "application/json" }, signal: ctrl ? ctrl.signal : undefined });
   } catch (e) {
-    throw new Error(e && e.name === "AbortError" ? "Server neodpověděl do 60 s." : "Server je nedostupný (" + (e && e.message ? e.message : e) + ").");
+    if (e && e.name === "AbortError") throw new Error("Server neodpověděl do 60 s.");
+    throw new Error("Server " + (API_BASE || location.origin) + " je nedostupný (" + (e && e.message ? e.message : e) + "). " +
+      "Stránka potřebuje běžící server aplikace na VPS (viz README, krok „Nasazení“) – bez něj data nejsou odkud načíst.");
   } finally { if (timer) clearTimeout(timer); }
   let body = null;
   try { body = await resp.json(); } catch (e) { body = null; }

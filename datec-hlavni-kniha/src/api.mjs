@@ -7,18 +7,19 @@
  *          → { ucty, mesice, porovnani, roky }
  *   GET /api/detail?firma=&ucet=&od=&do=[&limit=400]   → { zapisy }
  *
- * Bez přihlášení – data nejsou tajná. Pouze čtení.
+ * Bez přihlášení – data nejsou tajná. Pouze čtení. CORS otevřený (GET), aby šla stránka otevřít i mimo server.
  */
 import * as kniha from './kniha.mjs';
 
 const json = (body, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' } });
 
 export function createHandler({ dbs }) {
   return async function handle(req) {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, '');
     const q = (k) => url.searchParams.get(k) ?? '';
+    if (req.method.toUpperCase() === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Allow-Headers': 'Accept' } });
     if (req.method.toUpperCase() !== 'GET') return json({ ok: false, error: 'Aplikace jen čte – povolena je pouze metoda GET.' }, 405);
     try {
       if (path === '/api/health') return json({ ok: true, cas: new Date().toISOString() });
