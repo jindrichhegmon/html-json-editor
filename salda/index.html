@@ -1,0 +1,2526 @@
+<!DOCTYPE html><script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Salda Centrum & Datec",
+  "schemaVersion": 1,
+  "description": "Sloučený přehled sald pro Centrum (CLB) a Datec — v jedné aplikaci se přepíná mezi agendou dodavatelů (závazky) a odběratelů (pohledávky). Data se čtou přímo z databáze „DATEC CONSULTING“ (Softr Database, REST API s API klíčem uloženým v prohlížeči) – bez Make scénářů. Dodavatelé: kalendář plateb se skládá z tabulek CLBSADO/DATECSADO (faktury) a TPCLB/TPDATEC (trvalé příkazy rozepsané podle frekvence do zvoleného období); tlačítko Trvalé příkazy je upravuje přímo v databázi. Odběratelé: tabulky CLBSAOD/DATECSAOD, filtr Bez pojišťoven a počet dní po splatnosti. Bez API klíče nebo při výpadku obě agendy zobrazí snapshot ze 14. 7. 2026.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salda — Centrum &amp; Datec</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --btn-blue: #2a78d6;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;   /* Trvalé příkazy */
+    --series-2: #1baf7a;   /* Platby (faktury) */
+    --series-3: #7c5cd6;   /* Pravidelné příjmy */
+    --wash-1: rgba(42,120,214,0.10);
+    --wash-2: rgba(27,175,122,0.10);
+    --wash-3: rgba(124,92,214,0.10);
+    --good: #006300;
+    --neg: #b3341a;
+    --warn-bg: #fdf6e3;
+    --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --btn-blue: #3987e5;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --series-2: #199e70;
+      --series-3: #8f72e6;
+      --wash-1: rgba(57,135,229,0.14);
+      --wash-2: rgba(25,158,112,0.14);
+      --wash-3: rgba(143,114,230,0.14);
+      --good: #0ca30c;
+      --neg: #ef6a4c;
+      --warn-bg: #2a2513;
+      --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    min-height: 100vh;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    padding: 20px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  /* ---------- header ---------- */
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; padding-bottom: 2px; border-bottom: 3px solid var(--accent); }
+  .status { font-size: 12px; color: var(--text-muted); }
+  .status .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:baseline; }
+  .status .dot.live { background: var(--good); }
+  .status .dot.snap { background: var(--text-muted); }
+
+  /* ---------- filter row ---------- */
+  .filters {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin: 14px 0 18px;
+  }
+  .seg { display: inline-flex; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+  .seg button {
+    appearance: none; border: 0; background: transparent; color: var(--text-secondary);
+    font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .seg button:hover { color: var(--text-primary); }
+  .seg button[aria-pressed="true"] { background: var(--btn-blue); color: #ffffff; font-weight: 600; }
+  .custom-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .custom-range input {
+    font: inherit; font-size: 12px; color: var(--text-primary);
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px;
+  }
+  .btn {
+    appearance: none; font: inherit; font-size: 13px; cursor: pointer;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px;
+  }
+  .btn:hover { border-color: var(--baseline); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .btn.toggle[aria-pressed="true"] { background: var(--btn-blue); color: #ffffff; border-color: var(--btn-blue); font-weight: 600; }
+  .spacer { flex: 1; }
+
+  .notice {
+    background: var(--warn-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 16px;
+  }
+  .notice.hidden { display: none; }
+
+  .content { transition: opacity .15s; }
+  .content.loading { opacity: .45; pointer-events: none; }
+
+  /* ---------- KPI row ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .tile .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .tile .value { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+  .tile.hero .value { font-size: 34px; }
+  .tile .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .tile .key { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:baseline; }
+
+  /* ---------- cards ---------- */
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; font-weight: 650; margin: 0 0 12px; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-top: 10px; flex-wrap: wrap; }
+  .legend .key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+
+  /* stacked share bar */
+  .share-bar { display: flex; gap: 2px; height: 20px; border-radius: 4px; overflow: hidden; background: var(--grid); }
+  .share-bar .segm { height: 100%; min-width: 3px; }
+  .share-labels { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 12.5px; color: var(--text-secondary); flex-wrap: wrap; }
+  .share-labels strong { color: var(--text-primary); font-weight: 600; }
+
+  /* top items bars */
+  .bars { display: grid; grid-template-columns: minmax(120px, 220px) 1fr; row-gap: 8px; column-gap: 10px; align-items: center; }
+  .bars .bname {
+    font-size: 12.5px; color: var(--text-secondary); text-align: right;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bars .btrack { position: relative; height: 24px; display: flex; align-items: center; cursor: default; }
+  .bars .bfill { height: 16px; border-radius: 0 4px 4px 0; }
+  .bars .btrack:hover .bfill { filter: brightness(1.12); }
+  .bars .bval { font-size: 12px; color: var(--text-primary); margin-left: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* ---------- table ---------- */
+  .table-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .table-tools input[type="search"] {
+    font: inherit; font-size: 13px; padding: 6px 10px; min-width: 200px;
+    background: var(--page); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--baseline);
+  }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.num.neg { color: var(--neg); }
+  td.date { white-space: nowrap; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .typ { white-space: nowrap; font-size: 12.5px; color: var(--text-secondary); }
+  .typ .key { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+  .freq { color: var(--text-muted); font-size: 12px; }
+  td.num.income { color: var(--good); font-weight: 600; }
+  .overdays { color: var(--text-muted); font-size: 12px; }
+  .firm { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+  tfoot td { font-weight: 600; border-top: 1px solid var(--baseline); border-bottom: 0; }
+  .empty { text-align: center; color: var(--text-muted); padding: 24px 8px; }
+
+  /* tooltip */
+  #tip {
+    position: fixed; z-index: 50; pointer-events: none; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); padding: 8px 10px; font-size: 12px; max-width: 280px;
+  }
+  #tip .t-val { font-size: 14px; font-weight: 650; color: var(--text-primary); }
+  #tip .t-name { color: var(--text-secondary); margin-top: 2px; }
+  #tip .t-meta { color: var(--text-muted); margin-top: 2px; }
+  #tip .lk { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 3px; }
+
+  footer { font-size: 11.5px; color: var(--text-muted); margin-top: 8px; }
+
+  /* table scrolls inside its card instead of overflowing it */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll table { min-width: 560px; }
+
+  /* ---------- access gate ---------- */
+  #gate {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--page);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #gate.hidden { display: none; }
+  .gate-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 28px 24px; max-width: 380px; width: 100%; text-align: center;
+  }
+  .gate-card h2 { font-size: 17px; margin: 0 0 6px; }
+  .gate-card p { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 16px; }
+  .gate-card input {
+    width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px; letter-spacing: .04em; text-align: center;
+    padding: 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--page); color: var(--text-primary);
+  }
+  .gate-card input:focus { outline: 2px solid var(--btn-blue); outline-offset: 1px; }
+  .gate-card .gate-btn {
+    margin-top: 12px; width: 100%; font: inherit; font-size: 14px; font-weight: 600;
+    padding: 10px; border: 0; border-radius: 8px; cursor: pointer;
+    background: var(--btn-blue); color: #ffffff;
+  }
+  .gate-err { min-height: 18px; font-size: 12px; color: #d03b3b; margin-top: 8px; }
+  .gate-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; }
+
+  /* ---------- údržba trvalých příkazů (modal) ---------- */
+  #tpBtn {
+    background: #123f7a; border-color: #123f7a; color: #ffffff; font-weight: 600;
+  }
+  #tpBtn:hover { background: #1a5399; border-color: #1a5399; }
+  #tpAddBtn {
+    background: #123f7a; border-color: #123f7a; color: #ffffff; font-weight: 600;
+  }
+  #tpAddBtn:hover { background: #1a5399; border-color: #1a5399; }
+  #tpAddIncomeBtn { border-color: var(--series-3); color: var(--series-3); font-weight: 600; }
+  #tpAddIncomeBtn:hover { background: var(--wash-3); }
+  .tp-table td.tp-addrow { padding: 6px 0 2px; border-bottom: 0; }
+  .tp-table td.tp-addrow .tp-addrow-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tp-table tr.tp-editing td { background: var(--wash-1, rgba(42,120,214,0.10)); }
+  .tp-table td.tp-addrow button {
+    appearance: none; display: block; flex: 1 1 220px; box-sizing: border-box;
+    font: inherit; font-size: 12.5px; font-weight: 600; text-align: left;
+    padding: 9px 10px; cursor: pointer; border-radius: 8px;
+    border: 1px dashed var(--baseline); background: transparent; color: var(--btn-blue);
+  }
+  .tp-table td.tp-addrow button:hover {
+    background: var(--wash-1, rgba(42,120,214,0.10)); border-color: var(--btn-blue);
+  }
+  .tp-table td.tp-addrow button.income { color: var(--series-3); }
+  .tp-table td.tp-addrow button.income:hover { background: var(--wash-3); border-color: var(--series-3); }
+  .tp-table td.tp-typ { white-space: nowrap; }
+  .tp-table td.tp-typ .key { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+
+  #tpModal {
+    position: fixed; inset: 0; z-index: 90;
+    background: rgba(0,0,0,.38);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 4vh 12px; overflow-y: auto;
+  }
+  #tpModal.hidden { display: none; }
+  .tp-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    max-width: 780px; width: 100%; padding: 18px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.25);
+  }
+  .tp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .tp-head h2 { font-size: 16px; font-weight: 650; margin: 0; flex: 1; }
+  .tp-close {
+    appearance: none; border: 0; background: transparent; color: var(--text-muted);
+    font-size: 22px; line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 6px;
+  }
+  .tp-close:hover { color: var(--text-primary); background: var(--page); }
+  .tp-status { min-height: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .tp-status.err { color: #d03b3b; }
+  .tp-table input, .tp-table select {
+    font: inherit; font-size: 12.5px; padding: 4px 6px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--page); color: var(--text-primary);
+    width: 100%; box-sizing: border-box; min-width: 80px;
+  }
+  .tp-table td.num input { text-align: right; }
+  .tp-act { white-space: nowrap; text-align: right; }
+  .tp-act button {
+    appearance: none; border: 0; background: transparent; color: var(--btn-blue);
+    font: inherit; font-size: 12.5px; cursor: pointer; padding: 2px 4px;
+  }
+  .tp-act button.danger { color: #d03b3b; }
+  .tp-act button:hover { text-decoration: underline; }
+  .tp-footer { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .tp-note { flex: 1; font-size: 12px; color: var(--text-secondary); min-width: 180px; }
+  /* ---------- připojení k databázi (modal) ---------- */
+  #dbModal {
+    position: fixed; inset: 0; z-index: 95;
+    background: rgba(0,0,0,.38);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 8vh 12px; overflow-y: auto;
+  }
+  #dbModal.hidden { display: none; }
+  .db-card { max-width: 560px; }
+  .db-text { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 12px; }
+  .db-text code { font-size: 12px; }
+  .db-label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .db-label input {
+    display: block; width: 100%; box-sizing: border-box; margin-top: 4px;
+    font: inherit; font-size: 13px; letter-spacing: .06em; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--page); color: var(--text-primary);
+  }
+  .db-label input:focus { outline: 2px solid var(--btn-blue); outline-offset: 1px; }
+  .db-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 10px; }
+  #dbSaveBtn { background: #123f7a; border-color: #123f7a; color: #ffffff; font-weight: 600; }
+  #dbSaveBtn:hover { background: #1a5399; border-color: #1a5399; }
+  .apptabs #dbBtn { margin-left: auto; font-weight: 500; }
+
+
+  /* ---------- přepínač agend ---------- */
+  [hidden] { display: none !important; }
+  .apptabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 16px; }
+  .apptabs button {
+    appearance: none; font: inherit; font-size: 13.5px; font-weight: 600;
+    padding: 8px 14px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+  }
+  .apptabs button:hover { border-color: var(--baseline); color: var(--text-primary); }
+  .apptabs button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: #ffffff;
+  }
+
+  /* ---------- paleta agendy odběratelů ---------- */
+  .viz-root[data-mode="odb"] {
+
+    --btn-blue: #2a78d6;
+    --surface-1: #fdfcfa;
+    --page: #faf7f2;
+    --text-primary: #16110b;
+    --text-secondary: #57503f;
+    --text-muted: #8d8471;
+    --grid: #e8e2d4;
+    --baseline: #ccc4b0;
+    --border: rgba(22,17,11,0.10);
+    --series-1: #d1590f;   /* Po splatnosti */
+    --series-2: #7c5cd6;   /* Ve splatnosti */
+    --wash-1: rgba(209,89,15,0.10);
+    --wash-2: rgba(124,92,214,0.10);
+    --good: #006300;
+    --neg: #9e2f10;
+    --warn-bg: #fdf1e3;
+    --accent: #7c5cd6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root[data-mode="odb"] {
+
+      --btn-blue: #3987e5;
+      --surface-1: #1c1915;
+      --page: #12100c;
+      --text-primary: #ffffff;
+      --text-secondary: #cdc5b2;
+      --text-muted: #8d8471;
+      --grid: #2f2b23;
+      --baseline: #3d382d;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #e57332;
+      --series-2: #9678e8;
+      --wash-1: rgba(229,115,50,0.14);
+      --wash-2: rgba(150,120,232,0.14);
+      --good: #0ca30c;
+      --neg: #e57358;
+      --warn-bg: #2c2113;
+      --accent: #9678e8;
+    }
+  }
+
+  /* ---------- mobile ---------- */
+  @media (max-width: 560px) {
+    .viz-root { padding: 10px; }
+    .card { padding: 12px; }
+    .tile { padding: 12px; }
+    .tile .value { font-size: 21px; }
+    .tile.hero .value { font-size: 21px; }
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+    .seg { flex-wrap: wrap; }
+    .filters { gap: 6px; }
+    .bars { grid-template-columns: minmax(84px, 120px) 1fr; column-gap: 6px; }
+    .bars .bname { font-size: 11.5px; }
+    .bars .bval { font-size: 11px; margin-left: 6px; }
+    .table-tools input[type="search"] { min-width: 0; flex: 1; }
+    h1 { font-size: 18px; }
+  }
+</style>
+</head>
+<body class="viz-root" data-mode="dod" data-palette="#2a78d6,#1baf7a">
+<div class="wrap">
+  <nav class="apptabs" id="appTabs" aria-label="Agenda">
+    <button type="button" data-mode="dod" aria-pressed="true">Dodavatelé — závazky</button>
+    <button type="button" data-mode="odb" aria-pressed="false">Odběratelé — pohledávky</button>
+    <button type="button" id="dbBtn" title="Nastavení připojení k Softr Database">⚙ Databáze</button>
+  </nav>
+  <section class="panel" id="panel-dod">
+
+  <header>
+    <h1>Saldo dodavatelů</h1>
+    <span class="status" id="d-status"><span class="dot snap"></span>načítám…</span>
+  </header>
+
+  <div class="filters">
+    <div class="seg" id="d-entitySeg" role="group" aria-label="Firma">
+      <button data-entity="centrum" aria-pressed="true">Centrum</button>
+      <button data-entity="datec" aria-pressed="false">Datec</button>
+      <button data-entity="both" aria-pressed="false">Obě</button>
+    </div>
+    <div class="seg" id="d-rangeSeg" role="group" aria-label="Období">
+      <button data-range="twoMonths" aria-pressed="true">Tento + příští měsíc</button>
+      <button data-range="next30" aria-pressed="false">Příštích 30 dní</button>
+      <button data-range="thisMonth" aria-pressed="false">Tento měsíc</button>
+    </div>
+    <span class="custom-range">
+      <label>od <input type="date" id="d-fromInput"></label>
+      <label>do <input type="date" id="d-toInput"></label>
+    </span>
+    <span class="spacer"></span>
+    <button class="btn" id="tpBtn">Trvalé příkazy - editace</button>
+    <button class="btn" id="d-refreshBtn">Obnovit</button>
+  </div>
+
+  <div class="notice hidden" id="d-notice"></div>
+
+  <div class="content" id="d-content">
+    <div class="kpis" id="d-kpis"></div>
+
+    <div class="card">
+      <h2>Rozložení: trvalé příkazy vs. platby</h2>
+      <div class="share-bar" id="d-shareBar" aria-hidden="true"></div>
+      <div class="share-labels" id="d-shareLabels"></div>
+      <div class="legend">
+        <span><span class="key" style="background:var(--series-1)"></span>Trvalé příkazy</span>
+        <span><span class="key" style="background:var(--series-2)"></span>Platby (faktury)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Největší položky v období</h2>
+      <div class="bars" id="d-topBars"></div>
+    </div>
+
+    <div class="card">
+      <h2>Všechny položky</h2>
+      <div class="table-tools">
+        <div class="seg" id="d-typeSeg" role="group" aria-label="Typ položky">
+          <button data-type="all" aria-pressed="true">Vše</button>
+          <button data-type="TP" aria-pressed="false">Trvalé příkazy</button>
+          <button data-type="SA" aria-pressed="false">Platby</button>
+          <button data-type="PR" aria-pressed="false">Příjmy</button>
+        </div>
+        <input type="search" id="d-searchInput" placeholder="Hledat dodavatele…" aria-label="Hledat dodavatele">
+      </div>
+      <div class="table-scroll">
+      <table id="d-itemsTable">
+        <thead>
+          <tr>
+            <th>Splatnost</th>
+            <th id="d-firmTh" style="display:none">Firma</th>
+            <th>Položka</th>
+            <th>Typ</th>
+            <th class="num">Částka</th>
+          </tr>
+        </thead>
+        <tbody id="d-tableBody"></tbody>
+        <tfoot id="d-tableFoot"></tfoot>
+      </table>
+      </div>
+    </div>
+
+    <footer id="d-footer">Zdroj: Softr Database „DATEC CONSULTING“ – tabulky CLBSADO / DATECSADO (neuhrazené faktury dodavatelů, saldokonto CLB / DATEC) a TPCLB / TPDATEC (trvalé příkazy). Trvalé příkazy se do kalendáře rozepisují podle frekvence od dnešního dne; pravidelný příjem je v tabulce TP uložen jako záporná částka.</footer>
+  </div>
+  </section>
+
+  <section class="panel" id="panel-odb" hidden>
+
+  <header>
+    <h1>Saldo odběratelů</h1>
+    <span class="status" id="o-status"><span class="dot snap"></span>načítám…</span>
+  </header>
+
+  <div class="filters">
+    <div class="seg" id="o-entitySeg" role="group" aria-label="Firma">
+      <button data-entity="centrum" aria-pressed="true">Centrum</button>
+      <button data-entity="datec" aria-pressed="false">Datec</button>
+      <button data-entity="both" aria-pressed="false">Obě</button>
+    </div>
+    <button class="btn toggle" id="o-noInsBtn" aria-pressed="false" title="Skrýt subjekty s „pojišťovna“ v názvu">Bez pojišťoven</button>
+    <span class="custom-range">
+      <label>splatnost od <input type="date" id="o-fromInput"></label>
+      <label>do <input type="date" id="o-toInput"></label>
+      <button class="btn" id="o-clearRangeBtn" title="Zrušit filtr období">Vše</button>
+    </span>
+    <span class="spacer"></span>
+    <button class="btn" id="o-refreshBtn">Obnovit</button>
+  </div>
+
+  <div class="notice hidden" id="o-notice"></div>
+
+  <div class="content" id="o-content">
+    <div class="kpis" id="o-kpis"></div>
+
+    <div class="card">
+      <h2>Rozložení: po splatnosti vs. ve splatnosti</h2>
+      <div class="share-bar" id="o-shareBar" aria-hidden="true"></div>
+      <div class="share-labels" id="o-shareLabels"></div>
+      <div class="legend">
+        <span><span class="key" style="background:var(--series-1)"></span>Po splatnosti</span>
+        <span><span class="key" style="background:var(--series-2)"></span>Ve splatnosti</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Největší pohledávky</h2>
+      <div class="bars" id="o-topBars"></div>
+    </div>
+
+    <div class="card">
+      <h2>Všechny položky</h2>
+      <div class="table-tools">
+        <div class="seg" id="o-typeSeg" role="group" aria-label="Stav položky">
+          <button data-type="all" aria-pressed="true">Vše</button>
+          <button data-type="PO" aria-pressed="false">Po splatnosti</button>
+          <button data-type="OK" aria-pressed="false">Ve splatnosti</button>
+        </div>
+        <input type="search" id="o-searchInput" placeholder="Hledat odběratele…" aria-label="Hledat odběratele">
+      </div>
+      <div class="table-scroll">
+      <table id="o-itemsTable">
+        <thead>
+          <tr>
+            <th>Splatnost</th>
+            <th id="o-firmTh" style="display:none">Firma</th>
+            <th>Odběratel</th>
+            <th>Stav</th>
+            <th class="num">Částka</th>
+          </tr>
+        </thead>
+        <tbody id="o-tableBody"></tbody>
+        <tfoot id="o-tableFoot"></tfoot>
+      </table>
+      </div>
+    </div>
+
+    <footer id="o-footer">Zdroj: Softr Database „DATEC CONSULTING“ – tabulky CLBSAOD / DATECSAOD (saldokonto odběratelů CLB / DATEC). Záporná částka = přeplatek / dobropis (závazek vůči odběrateli).</footer>
+  </div>
+  </section>
+</div>
+<div id="tip" role="status"></div>
+
+<div id="gate">
+  <form class="gate-card" id="gateForm">
+    <h2>Salda — Centrum &amp; Datec</h2>
+    <p>Zadejte přístupový klíč (32 znaků). Na tomto počítači a v tomto prohlížeči se uloží a příště už nebude potřeba.</p>
+    <input id="gateInput" type="password" maxlength="32" autocomplete="off" spellcheck="false"
+           placeholder="••••••••••••••••••••••••••••••••" aria-label="Přístupový klíč">
+    <div class="gate-err" id="gateErr"></div>
+    <button class="gate-btn" type="submit">Odemknout</button>
+    <div class="gate-note" id="gateNote"></div>
+  </form>
+</div>
+
+<div id="tpModal" class="hidden">
+  <div class="tp-card" role="dialog" aria-label="Údržba trvalých příkazů">
+    <div class="tp-head">
+      <h2>Údržba trvalých příkazů</h2>
+      <button class="btn" id="tpAddBtn" title="Přidat nový trvalý příkaz (výdaj)">+ Přidat příkaz</button>
+      <button class="btn" id="tpAddIncomeBtn" title="Přidat pravidelný příjem">+ Přidat příjem</button>
+      <button class="tp-close" id="tpClose" aria-label="Zavřít">×</button>
+    </div>
+    <div class="filters" style="margin:0 0 10px">
+      <div class="seg" id="tpFirmaSeg" role="group" aria-label="Firma">
+        <button data-firma="centrum" aria-pressed="true">Centrum</button>
+        <button data-firma="datec" aria-pressed="false">Datec</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn" id="tpReloadBtn">Obnovit seznam</button>
+    </div>
+    <div class="tp-status" id="tpStatus"></div>
+    <div class="table-scroll">
+      <table class="tp-table">
+        <thead>
+          <tr><th>Popis</th><th>Typ</th><th>Frekvence</th><th class="num">Částka</th><th>Datum platby</th><th></th></tr>
+        </thead>
+        <tbody id="tpBody"></tbody>
+        <tfoot id="tpFoot"></tfoot>
+      </table>
+    </div>
+    <div class="tp-footer">
+      <span class="tp-note" id="tpNote"></span>
+    </div>
+  </div>
+</div>
+
+<div id="dbModal" class="hidden">
+  <div class="tp-card db-card" role="dialog" aria-label="Připojení k databázi">
+    <div class="tp-head">
+      <h2>Připojení k Softr Database</h2>
+      <button class="tp-close" id="dbClose" aria-label="Zavřít">×</button>
+    </div>
+    <p class="db-text">Data se čtou a zapisují přímo v databázi „DATEC CONSULTING“ (Softr Database), bez Make scénářů. Vložte API klíč Softr (Workspace settings → API keys). Klíč se ukládá jen v tomto prohlížeči a posílá se pouze na <code>tables-api.softr.io</code>.</p>
+    <label class="db-label">API klíč
+      <input id="dbKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="Softr-Api-Key">
+    </label>
+    <div class="tp-status" id="dbStatus"></div>
+    <div class="tp-footer">
+      <button class="btn" id="dbTestBtn">Otestovat připojení</button>
+      <button class="btn" id="dbClearBtn">Odebrat klíč</button>
+      <span class="spacer"></span>
+      <button class="btn" id="dbSaveBtn">Uložit a načíst data</button>
+    </div>
+    <div class="db-meta">Tabulky: CLBSADO / DATECSADO (faktury dodavatelů), TPCLB / TPDATEC (trvalé příkazy), CLBSAOD / DATECSAOD (odběratelé).</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= sdílené konstanty a pomocné funkce ================= */
+const ENTITY_LABEL = { centrum: "Centrum", datec: "Datec" };
+
+const store = {
+  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  remove(k) { try { window.localStorage.removeItem(k); } catch (e) { /* prohlížeč úložiště nedovolil */ } }
+};
+
+/* ================= Softr Database – přímé napojení (bez Make scénářů) =================
+   Data se čtou i zapisují přímo přes REST API Softr Database (databáze „DATEC CONSULTING“).
+   Klíče polí jsou ID sloupců v Softr Database (v API se používají místo názvů sloupců). */
+const DB = {
+  base: "https://tables-api.softr.io/api/v1",
+  databaseId: "89c93f5d-d0d6-4236-b3a9-f17657f2bdd4",
+  storageKey: "saldaSoftrApiKey_v1",
+  timeoutMs: 60000,
+  pageSize: 200,
+  tables: {
+    centrum: {
+      sado: { id: "Wrv6DP3VZRdj6A", label: "CLBSADO",   name: "GHxbV", amount: "A9Weu", due: "Y6fq5" },
+      saod: { id: "TZrumRA63hOvtP", label: "CLBSAOD",   name: "USblQ", amount: "7vf6i", due: "o3kzS" },
+      tp:   { id: "zS61x6RFnkDDhP", label: "TPCLB",     name: "Anofq", freq: "jotZQ", amount: "WdF0g", due: "8UBn2" }
+    },
+    datec: {
+      sado: { id: "jlGI04b845QuGg", label: "DATECSADO", name: "J1z10", amount: "aSi2c", due: "vX6X9" },
+      saod: { id: "JYM9Khfynj7b4E", label: "DATECSAOD", name: "43l79", amount: "jjxAq", due: "Ms8GD" },
+      tp:   { id: "sGtUtQ555woh3m", label: "TPDATEC",   name: "10uJt", freq: "GIWq0", amount: "qw3Z5", due: "kccvt" }
+    }
+  }
+};
+
+const db = {
+  key() { return String(store.get(DB.storageKey) || "").trim(); },
+  hasKey() { return this.key().length > 0; },
+  path(tableId, recordId) {
+    return "/databases/" + DB.databaseId + "/tables/" + tableId + "/records" + (recordId ? "/" + encodeURIComponent(recordId) : "");
+  },
+  async request(method, path, body, keyOverride) {
+    const key = keyOverride != null ? String(keyOverride).trim() : this.key();
+    if (!key) {
+      const err = new Error("Není zadán API klíč Softr Database (tlačítko „Databáze“ vpravo nahoře).");
+      err.noKey = true;
+      throw err;
+    }
+    const headers = { "Softr-Api-Key": key, "Accept": "application/json" };
+    if (body != null) headers["Content-Type"] = "application/json";
+    const ctrl = ("AbortController" in window) ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), DB.timeoutMs) : null;
+    let resp, text;
+    try {
+      resp = await fetch(DB.base + path, {
+        method, headers, cache: "no-store",
+        body: body != null ? JSON.stringify(body) : undefined,
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      text = await resp.text();
+    } catch (e) {
+      if (e && e.name === "AbortError") throw new Error("Vypršel časový limit (" + Math.round(DB.timeoutMs / 1000) + " s) – Softr Database neodpověděla včas.");
+      throw new Error("Síťová chyba při volání Softr Database (" + (e && e.message ? e.message : String(e)) +
+        "). Zkontrolujte připojení k internetu; pokud chyba trvá, API pravděpodobně odmítá volání z prohlížeče (CORS).");
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (resp.status === 401 || resp.status === 403) {
+      throw new Error("Softr Database odmítla API klíč (HTTP " + resp.status + "). Zkontrolujte klíč v nastavení „Databáze“.");
+    }
+    if (!resp.ok) throw new Error("HTTP " + resp.status + " – " + String(text || "").slice(0, 160));
+    if (!text) return null;
+    try { return JSON.parse(text); }
+    catch (e) { throw new Error("Neočekávaná odpověď Softr Database: " + String(text).slice(0, 120)); }
+  },
+  /* odpověď API: { data: [...], metadata: { offset, limit, total } } – pro jistotu přijmeme i { records, total } */
+  rows(r) { return (r && (Array.isArray(r.data) ? r.data : Array.isArray(r.records) ? r.records : null)) || []; },
+  total(r) {
+    if (r && r.metadata && typeof r.metadata.total === "number") return r.metadata.total;
+    if (r && typeof r.total === "number") return r.total;
+    return null;
+  },
+  async listAll(tableId) {
+    const out = [];
+    let offset = 0;
+    for (let page = 0; page < 100; page++) {
+      const r = await this.request("GET", this.path(tableId) + "?limit=" + DB.pageSize + "&offset=" + offset);
+      const rows = this.rows(r);
+      out.push(...rows);
+      offset += rows.length;
+      const total = this.total(r);
+      if (!rows.length || rows.length < DB.pageSize || (total != null && offset >= total)) break;
+    }
+    return out;
+  },
+  async probe(key) {
+    const r = await this.request("GET", this.path(DB.tables.centrum.tp.id) + "?limit=1", null, key);
+    return this.total(r);
+  },
+  create(tableId, fields) { return this.request("POST", this.path(tableId), { fields }); },
+  update(tableId, recordId, fields) { return this.request("PATCH", this.path(tableId, recordId), { fields }); },
+  remove(tableId, recordId) { return this.request("DELETE", this.path(tableId, recordId)); }
+};
+
+/* hodnota pole záznamu (API vrací { id, fields: {…} }) */
+function fieldOf(rec, key) {
+  const f = rec && rec.fields && typeof rec.fields === "object" ? rec.fields : rec;
+  return f ? f[key] : undefined;
+}
+/* datum z databáze → "YYYY-MM-DD"; přijímá "2026-09-14T00:00:00.000Z", "2026-09-14" i "14.09.2026" */
+function toIsoDate(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  m = s.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})$/);
+  if (m) return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+  return null;
+}
+function toNumber(v) {
+  if (typeof v === "number") return v;
+  if (v == null || v === "") return NaN;
+  return parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
+}
+function isoDate(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function parseIsoDate(s) {
+  const m = String(s || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+/* ---- rozpis trvalého příkazu do období podle frekvence (dříve dělal Make scénář „přepočet kalendáře“) ---- */
+function freqStep(freq) {
+  const f = String(freq || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/^(tydenni|tydne|kazdy tyden)$/.test(f)) return { days: 7 };
+  if (/^(14 dni|po 14 dnech|ctrnactidenni|dvoutydenni)$/.test(f)) return { days: 14 };
+  if (/^(mesicni|mesicne|kazdy mesic)$/.test(f)) return { months: 1 };
+  if (/^(ctvrtletni|ctvrtletne|kvartalni)$/.test(f)) return { months: 3 };
+  if (/^(pololetni|pololetne)$/.test(f)) return { months: 6 };
+  if (/^(rocni|rocne)$/.test(f)) return { months: 12 };
+  return null;   // jednorázově / neznámá frekvence → jediná platba v den DatumPlatby
+}
+function addStep(d, step, anchorDay) {
+  const n = new Date(d.getTime());
+  if (step.days) { n.setDate(n.getDate() + step.days); return n; }
+  n.setDate(1);
+  n.setMonth(n.getMonth() + step.months);
+  const last = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+  n.setDate(Math.min(anchorDay, last));   // 31. → 30./28. v kratším měsíci, bez posunu v dalších měsících
+  return n;
+}
+/* všechna data platby v intervalu <from, to> (ISO řetězce) */
+function tpOccurrences(due, freq, from, to) {
+  const start = parseIsoDate(due);
+  if (!start || !from || !to || from > to) return [];
+  const step = freqStep(freq);
+  const out = [];
+  if (!step) {
+    const s = isoDate(start);
+    if (s >= from && s <= to) out.push(s);
+    return out;
+  }
+  const anchorDay = start.getDate();
+  let d = start, guard = 0;
+  while (isoDate(d) < from && guard++ < 5000) d = addStep(d, step, anchorDay);
+  while (isoDate(d) <= to && guard++ < 5000) { out.push(isoDate(d)); d = addStep(d, step, anchorDay); }
+  return out;
+}
+
+/* nejbližší platba trvalého příkazu ode dneška (pro editor TP) */
+function tpNextDate(due, freq) {
+  const today = isoDate(new Date());
+  const end = new Date(); end.setFullYear(end.getFullYear() + 3);
+  const o = tpOccurrences(due, freq, today, isoDate(end));
+  return o.length ? o[0] : null;
+}
+
+/* upozornění při přechodu na snapshot */
+function showLoadNotice(noticeEl, snapshotDate, err, noKey) {
+  noticeEl.replaceChildren();
+  noticeEl.appendChild(document.createTextNode(noKey
+    ? "Není zadán API klíč Softr Database — zobrazují se data uložená " + fmtDate(snapshotDate) +
+      ". Klikněte na „Databáze“ vpravo nahoře, vložte API klíč a pak na Obnovit."
+    : "Načtení ze Softr Database se nezdařilo — zobrazují se data uložená " + fmtDate(snapshotDate) +
+      ". Zkuste Obnovit; pokud problém trvá, zkontrolujte API klíč v nastavení „Databáze“."));
+  if (!noKey && err) {
+    const det = document.createElement("details");
+    det.style.marginTop = "6px";
+    const sum = document.createElement("summary");
+    sum.textContent = "Diagnostika (pro ladění)";
+    sum.style.cursor = "pointer";
+    det.appendChild(sum);
+    const pre = document.createElement("div");
+    pre.style.fontSize = "11.5px"; pre.style.marginTop = "4px"; pre.style.whiteSpace = "pre-wrap";
+    pre.textContent = err;
+    det.appendChild(pre);
+    noticeEl.appendChild(det);
+  }
+  noticeEl.classList.remove("hidden");
+}
+
+const czk = new Intl.NumberFormat("cs-CZ", { style: "currency", currency: "CZK", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const czk0 = new Intl.NumberFormat("cs-CZ", { style: "currency", currency: "CZK", maximumFractionDigits: 0 });
+function fmtDate(s) {
+  const [y, m, d] = s.split("-").map(Number);
+  return d + ". " + m + ". " + y;
+}
+
+function pct(part, total) { return total > 0 ? Math.round(part / total * 100) + " %" : "0 %"; }
+
+/* druhy položek: TP = trvalý příkaz (výdaj), SA = faktura dodavatele, PR = pravidelný příjem */
+const KIND_COLOR = { TP: "var(--series-1)", SA: "var(--series-2)", PR: "var(--series-3)" };
+const KIND_LABEL = { TP: "Trvalý příkaz", SA: "Platba", PR: "Příjem" };
+function kindColor(k) { return KIND_COLOR[k] || KIND_COLOR.SA; }
+function kindLabel(k) { return KIND_LABEL[k] || KIND_LABEL.SA; }
+
+function tile(label, value, sub, hero, keyColor) {
+  const t = document.createElement("div");
+  t.className = "tile" + (hero ? " hero" : "");
+  const l = document.createElement("div"); l.className = "label";
+  if (keyColor) { const k = document.createElement("span"); k.className = "key"; k.style.background = keyColor; l.appendChild(k); }
+  l.appendChild(document.createTextNode(label));
+  const v = document.createElement("div"); v.className = "value"; v.textContent = value;
+  const s = document.createElement("div"); s.className = "sub"; s.textContent = sub;
+  t.append(l, v, s);
+  return t;
+}
+
+function wireSeg(id, attr, onPick) {
+  const seg = document.getElementById(id);
+  seg.addEventListener("click", e => {
+    const btn = e.target.closest("button"); if (!btn) return;
+    for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b === btn));
+    onPick(btn.dataset[attr]);
+  });
+}
+
+/* ================= agenda: saldo dodavatelů ================= */
+const APP_DOD = (function () {
+/* ================= embedded snapshot (fallback when the database is unreachable) ================= */
+const SNAPSHOT_DATE = "2026-07-14";
+const SNAPSHOT = {
+  centrum: [
+`Saldokonto dodavatelů - CLB
+Text: TP: 1197.9 - Kč ARLES SM076/22  - Měsíční
+
+Castka: -1197.9 CZK
+
+Splatnost: 2026-07-13
+Text: TP: 3575 - Kč ALZA NEO MOBILY IPHONE  - Měsíční
+
+Castka: -3575 CZK
+
+Splatnost: 2026-07-14
+Text: TP: 540 - Kč ROZHLASOVÝ POPLATEK  - Čtvrtletní
+
+Castka: -540 CZK
+
+Splatnost: 2026-07-14
+Text: TP: 786.5 - Kč TISKÁRNA  - Měsíční
+
+Castka: -786.5 CZK
+
+Splatnost: 2026-07-14
+Text: SA: -29185.2 Kč - CompuGroup Medical Česká republika s.r.o.
+
+Castka: -29185.2 CZK
+
+Splatnost: 2026-07-21
+Text: SA: -2061.84 Kč - O2 Czech Republic a.s.
+
+Castka: -2061.84 CZK
+
+Splatnost: 2026-07-23
+Text: SA: -9207.29 Kč - O2 Czech Republic a.s.
+
+Castka: -9207.29 CZK
+
+Splatnost: 2026-07-23
+Text: TP: 4658.42 - Kč Kia RIO  - Měsíční
+
+Castka: -4658.42 CZK
+
+Splatnost: 2026-07-26
+Text: TP: 2180 - Kč CALLYX DELL PC  - Měsíční
+
+Castka: -2180 CZK
+
+Splatnost: 2026-07-27
+Text: TP: 52100 - Kč Splátka úvěrů  - Měsíční
+
+Castka: -52100 CZK
+
+Splatnost: 2026-07-29
+Text: SA: -1424 Kč - ARLES, s.r.o.
+
+Castka: -1424 CZK
+
+Splatnost: 2026-07-31
+Text: SA: -1004 Kč - Damapharm s.r.o.
+
+Castka: -1004 CZK
+
+Splatnost: 2026-08-03
+Text: SA: -29297 Kč - Damapharm s.r.o.
+
+Castka: -29297 CZK
+
+Splatnost: 2026-08-03
+Text: TP: 4453.66 - Kč KIA RIO 7Z65985  - Měsíční
+
+Castka: -4453.66 CZK
+
+Splatnost: 2026-08-07
+Text: TP: 786.5 - Kč ARLES PRONÁJEM DLE SM021/25  - Měsíční
+
+Castka: -786.5 CZK
+
+Splatnost: 2026-08-11
+`],
+  datec: [
+`Saldokonto dodavatelů - DATEC
+Text: TP: -1320 - Kč Open AI  - Měsíční
+
+Castka: -1320 CZK
+
+Splatnost: 2026-07-13
+Text: TP: -3390 - Kč Vodárna zálohy  - Měsíční
+
+Castka: -3390 CZK
+
+Splatnost: 2026-07-13
+Text: TP: -1090 - Kč E.ON  - Měsíční
+
+Castka: -1090 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -1215 - Kč TELEVIZNÍ POPLATEK  - Čtvrtletní
+
+Castka: -1215 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -1320 - Kč ROZHLASOVÝ POPLATEK  - Čtvrtletní
+
+Castka: -1320 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -1500 - Kč E.ON  - Měsíční
+
+Castka: -1500 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -2094 - Kč Byt 104  - Měsíční
+
+Castka: -2094 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -2107 - Kč Byt 103  - Měsíční
+
+Castka: -2107 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -4000 - Kč Honza penzijní spoření  - Měsíční
+
+Castka: -4000 CZK
+
+Splatnost: 2026-07-14
+Text: TP: -2075 - Kč Calyx Dell Pro 16  - Měsíční
+
+Castka: -2075 CZK
+
+Splatnost: 2026-07-15
+Text: TP: -15654.79 - Kč BMW X1 EL581CD  - Měsíční
+
+Castka: -15654.79 CZK
+
+Splatnost: 2026-07-19
+Text: SA: -13037 Kč - Pražská energetika, a.s.
+
+Castka: -13037 CZK
+
+Splatnost: 2026-07-20
+Text: SA: -780 Kč - JABLOTRON SECURITY a.s.
+
+Castka: -780 CZK
+
+Splatnost: 2026-07-21
+Text: TP: -7000 - Kč SPLÁTKA BMW 116I  - Měsíční
+
+Castka: -7000 CZK
+
+Splatnost: 2026-07-21
+Text: SA: -2145.46 Kč - O2 Czech Republic a.s.
+
+Castka: -2145.46 CZK
+
+Splatnost: 2026-07-23
+Text: SA: -4950.25 Kč - O2 Czech Republic a.s.
+
+Castka: -4950.25 CZK
+
+Splatnost: 2026-07-23
+Text: SA: -5283.62 Kč - O2 Czech Republic a.s.
+
+Castka: -5283.62 CZK
+
+Splatnost: 2026-07-23
+Text: TP: -20268.31 - Kč BMW X1 EL761DC  - Měsíční
+
+Castka: -20268.31 CZK
+
+Splatnost: 2026-07-23
+Text: TP: -27026.24 - Kč SPLÁTKA ÚVĚRU BMW 5  - Měsíční
+
+Castka: -27026.24 CZK
+
+Splatnost: 2026-07-23
+Text: TP: -37000 - Kč DPH   - Měsíčne
+
+Castka: -37000 CZK
+
+Splatnost: 2026-07-25
+Text: TP: -18771.92 - Kč BMW X1 EL341DZ  - Měsíční
+
+Castka: -18771.92 CZK
+
+Splatnost: 2026-07-27
+Text: TP: -6000 - Kč Splatka uveru  - Měsíčně
+
+Castka: -6000 CZK
+
+Splatnost: 2026-07-27
+Text: TP: -9597 - Kč BMW ŘADA 1 118I  - Měsíční
+
+Castka: -9597 CZK
+
+Splatnost: 2026-07-31
+Text: TP: -5691 - Kč KIA PICANTO  - Měsíční
+
+Castka: -5691 CZK
+
+Splatnost: 2026-08-06
+Text: TP: -11038 - Kč BMW 216 7Z88194  - Měsíční
+
+Castka: -11038 CZK
+
+Splatnost: 2026-08-07
+Text: TP: -1250 - Kč Olin  - Měsíční
+
+Castka: -1250 CZK
+
+Splatnost: 2026-08-09
+Text: TP: -5691 - Kč Kia Picanto  - Měsíční
+
+Castka: -5691 CZK
+
+Splatnost: 2026-08-09
+Text: TP: -664 - Kč AVONET internet  - Měsíční
+
+Castka: -664 CZK
+
+Splatnost: 2026-08-09
+Text: TP: -8720 - Kč PRE - ZÁLOHY PLYN  - Měsíční
+
+Castka: -8720 CZK
+
+Splatnost: 2026-08-12
+`]
+};
+
+/* ================= parsing ================= */
+
+function parseVystup(text, entity) {
+  const items = [];
+  const re = /Text:\s*([^\n]+)\n+Castka:\s*(-?[\d.]+)\s*CZK\n+Splatnost:\s*(\d{4}-\d{2}-\d{2})/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const line = m[1].trim();
+    if (/^SOU[CČ]ET/i.test(line)) continue;            // computed totals – we compute our own
+    const raw = parseFloat(m[2]);
+    const amount = Math.abs(raw);
+    const due = m[3];
+    if (!isFinite(amount)) continue;
+    let kind = "SA", name = line, freq = "";
+    const tp = line.match(/^TP:\s*-?[\d.,]+\s*-?\s*Kč\s*(.*)$/i);
+    const sa = line.match(/^SA:\s*-?[\d.,]+\s*Kč\s*-\s*(.*)$/i);
+    if (tp) {
+      /* přepočet ukládá výdaje do kalendáře jako zápornou částku; kladná částka = pravidelný příjem */
+      kind = raw > 0 ? "PR" : "TP";
+      let rest = tp[1].trim();
+      const fm = rest.match(/^(.*\S)\s+-\s*([^-]+?)\s*$/); // "NAME  - Měsíční" / "NAME  - 14 dní"
+      if (fm) { name = fm[1].trim(); freq = fm[2].trim(); }
+      else { name = rest; }
+    } else if (sa) {
+      name = sa[1].trim();
+    }
+    items.push({ kind, name, freq, amount, due, entity });
+  }
+  return items;
+}
+
+/* ================= živá data: Softr Database =================
+   Kalendář plateb se skládá přímo z tabulek databáze (dříve ho přes SQL přepočítával Make scénář):
+   - CLBSADO / DATECSADO … neuhrazené faktury dodavatelů (Název, Saldo 1, Datum splatnosti) → položky SA
+   - TPCLB / TPDATEC     … trvalé příkazy; do zvoleného období se rozepíší podle frekvence,
+                           počínaje dneškem (kladná částka = výdaj TP, záporná = pravidelný příjem PR)
+   Bez API klíče nebo při chybě se použije vestavěný snapshot. */
+function tpRecord(r, T) {
+  if (!r || !r.id) return null;
+  const raw = toNumber(fieldOf(r, T.amount));
+  return {
+    id: String(r.id),
+    name: String(fieldOf(r, T.name) || "").trim(),
+    freq: String(fieldOf(r, T.freq) || "").trim(),
+    amount: isFinite(raw) ? Math.abs(raw) : 0,
+    typ: isFinite(raw) && raw < 0 ? "PR" : "TP",
+    due: toIsoDate(fieldOf(r, T.due)) || ""
+  };
+}
+
+async function fetchDb(from, to) {
+  const today = iso(new Date());
+  const tpFrom = from > today ? from : today;   // trvalé příkazy jen od dneška (stejně jako dřívější kalendář)
+  const result = { centrum: [], datec: [], tp: { centrum: [], datec: [] } };
+  await Promise.all(["centrum", "datec"].map(async ent => {
+    const T = DB.tables[ent];
+    const [sado, tp] = await Promise.all([db.listAll(T.sado.id), db.listAll(T.tp.id)]);
+    const items = [];
+    for (const r of sado) {
+      const raw = toNumber(fieldOf(r, T.sado.amount));
+      const due = toIsoDate(fieldOf(r, T.sado.due));
+      const name = String(fieldOf(r, T.sado.name) || "").trim();
+      if (!isFinite(raw) || raw === 0 || !due) continue;
+      if (due < from || due > to) continue;
+      items.push({ kind: "SA", name: name || "(bez názvu)", freq: "", amount: Math.abs(raw), due, entity: ent });
+    }
+    const tpRows = tp.map(r => tpRecord(r, T.tp)).filter(Boolean);
+    for (const rec of tpRows) {
+      if (!rec.amount) continue;
+      for (const due of tpOccurrences(rec.due, rec.freq, tpFrom, to)) {
+        items.push({ kind: rec.typ, name: rec.name || "(bez popisu)", freq: rec.freq, amount: rec.amount, due, entity: ent });
+      }
+    }
+    result[ent] = items;
+    result.tp[ent] = tpRows;
+  }));
+  return result;
+}
+
+/* ================= state ================= */
+const state = {
+  entity: "centrum",
+  rangePreset: "twoMonths",
+  from: null, to: null,
+  typeFilter: "all",
+  search: "",
+  live: false,
+  lastUpdated: null,
+  data: { centrum: [], datec: [] }   // parsed items for current range
+};
+
+function iso(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function presetRange(preset) {
+  const now = new Date();
+  if (preset === "next30") {
+    const end = new Date(now); end.setDate(end.getDate() + 30);
+    return [iso(now), iso(end)];
+  }
+  if (preset === "thisMonth") {
+    return [iso(new Date(now.getFullYear(), now.getMonth(), 1)),
+            iso(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+  }
+  /* twoMonths – tento + příští měsíc */
+  return [iso(new Date(now.getFullYear(), now.getMonth(), 1)),
+          iso(new Date(now.getFullYear(), now.getMonth() + 2, 0))];
+}
+
+/* ================= data loading ================= */
+let loadSeq = 0;
+async function loadData() {
+  const seq = ++loadSeq;
+  const content = document.getElementById("d-content");
+  const btn = document.getElementById("d-refreshBtn");
+  content.classList.add("loading");
+  btn.disabled = true;
+  setStatus("snap", "načítám…");
+
+  const from = state.from, to = state.to;
+  let live = true, liveError = null, noKey = false, tpRows = null;
+  const result = { centrum: [], datec: [] };
+  try {
+    const r = await fetchDb(from, to);
+    result.centrum = r.centrum;
+    result.datec = r.datec;
+    tpRows = r.tp;
+  } catch (e) {
+    live = false;
+    noKey = !!(e && e.noKey);
+    liveError = e && e.message ? e.message : String(e);
+  }
+  if (!live) {
+    for (const ent of ["centrum", "datec"]) {
+      result[ent] = SNAPSHOT[ent]
+        .flatMap(t => parseVystup(t, ent))
+        .filter(it => it.due >= from && it.due <= to);
+    }
+  }
+  if (seq !== loadSeq) return;   // a newer load superseded this one
+
+  state.data = result;
+  state.live = live;
+  state.lastUpdated = new Date();
+  content.classList.remove("loading");
+  btn.disabled = false;
+  if (tpRows) tpRefreshFromDashboard(tpRows);
+
+  const notice = document.getElementById("d-notice");
+  if (live) {
+    notice.classList.add("hidden");
+    setStatus("live", "Živá data ze Softr Database · " + state.lastUpdated.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }));
+  } else {
+    setStatus("snap", "Snapshot ze " + fmtDate(SNAPSHOT_DATE));
+    showLoadNotice(notice, SNAPSHOT_DATE, liveError, noKey);
+  }
+  render();
+}
+
+function setStatus(mode, text) {
+  const el = document.getElementById("d-status");
+  el.replaceChildren();
+  const dot = document.createElement("span");
+  dot.className = "dot " + mode;
+  el.appendChild(dot);
+  el.appendChild(document.createTextNode(text));
+}
+
+/* ================= formatting ================= */
+
+/* ================= selection & rendering ================= */
+function visibleItems() {
+  let items = state.entity === "both"
+    ? state.data.centrum.concat(state.data.datec)
+    : state.data[state.entity].slice();
+  items.sort((a, b) => a.due < b.due ? -1 : a.due > b.due ? 1 : b.amount - a.amount);
+  return items;
+}
+
+function render() {
+  const items = visibleItems();
+  renderKpis(items);
+  renderShare(items);
+  renderTopBars(items);
+  renderTable(items);
+}
+
+function sumBy(items, kind) {
+  return items.filter(i => i.kind === kind).reduce((s, i) => s + i.amount, 0);
+}
+
+function renderKpis(items) {
+  const el = document.getElementById("d-kpis");
+  el.replaceChildren();
+  const tp = sumBy(items, "TP"), sa = sumBy(items, "SA"), pr = sumBy(items, "PR"), total = tp + sa;
+  const nTp = items.filter(i => i.kind === "TP").length;
+  const nSa = items.filter(i => i.kind === "SA").length;
+  const nPr = items.filter(i => i.kind === "PR").length;
+
+  const today = iso(new Date());
+  const upcoming = items.filter(i => i.due >= today && i.kind !== "PR");
+  let nextTxt = "—", nextSub = "žádná nadcházející";
+  if (upcoming.length) {
+    const day = upcoming[0].due;
+    const daySum = upcoming.filter(i => i.due === day).reduce((s, i) => s + i.amount, 0);
+    nextTxt = fmtDate(day);
+    nextSub = czk0.format(daySum) + " · " + upcoming.filter(i => i.due === day).length + " pol.";
+  }
+
+  el.appendChild(tile("Celkem k úhradě", czk0.format(total), (nTp + nSa) + " položek v období", true));
+  el.appendChild(tile("Trvalé příkazy", czk0.format(tp), nTp + " položek · " + pct(tp, total), false, "var(--series-1)"));
+  el.appendChild(tile("Platby (faktury)", czk0.format(sa), nSa + " položek · " + pct(sa, total), false, "var(--series-2)"));
+  if (nPr) {
+    const bil = pr - total;
+    el.appendChild(tile("Pravidelné příjmy", "+" + czk0.format(pr), nPr + " položek · bilance " + (bil >= 0 ? "+" : "") + czk0.format(bil), false, "var(--series-3)"));
+  }
+  el.appendChild(tile("Nejbližší splatnost", nextTxt, nextSub));
+}
+
+function renderShare(items) {
+  const bar = document.getElementById("d-shareBar");
+  const labels = document.getElementById("d-shareLabels");
+  bar.replaceChildren(); labels.replaceChildren();
+  const tp = sumBy(items, "TP"), sa = sumBy(items, "SA"), total = tp + sa;
+  if (total <= 0) { labels.textContent = "V období nejsou žádné položky."; return; }
+  const segTp = document.createElement("div");
+  segTp.className = "segm"; segTp.style.background = "var(--series-1)";
+  segTp.style.flex = String(tp);
+  const segSa = document.createElement("div");
+  segSa.className = "segm"; segSa.style.background = "var(--series-2)";
+  segSa.style.flex = String(sa);
+  bar.append(segTp, segSa);
+
+  const lTp = document.createElement("span");
+  const sTp = document.createElement("strong"); sTp.textContent = czk0.format(tp);
+  lTp.append("Trvalé příkazy ", sTp, " (" + pct(tp, total) + ")");
+  const lSa = document.createElement("span");
+  const sSa = document.createElement("strong"); sSa.textContent = czk0.format(sa);
+  lSa.append("Platby ", sSa, " (" + pct(sa, total) + ")");
+  labels.append(lTp, lSa);
+}
+
+function renderTopBars(items) {
+  const el = document.getElementById("d-topBars");
+  el.replaceChildren();
+  const top = items.filter(i => i.kind !== "PR").sort((a, b) => b.amount - a.amount).slice(0, 8);
+  if (!top.length) { const d = document.createElement("div"); d.className = "empty"; d.textContent = "Žádná data."; el.appendChild(d); return; }
+  const max = top[0].amount;
+  for (const it of top) {
+    const name = document.createElement("div");
+    name.className = "bname";
+    name.textContent = (state.entity === "both" ? ENTITY_LABEL[it.entity] + " · " : "") + it.name;
+    const track = document.createElement("div");
+    track.className = "btrack"; track.tabIndex = 0;
+    const fill = document.createElement("div");
+    fill.className = "bfill";
+    fill.style.width = Math.max(2, it.amount / max * 72) + "%";
+    fill.style.background = kindColor(it.kind);
+    const val = document.createElement("span");
+    val.className = "bval"; val.textContent = czk0.format(it.amount);
+    track.append(fill, val);
+    attachTip(track, it);
+    el.append(name, track);
+  }
+}
+
+/* tooltip */
+const tipEl = document.getElementById("tip");
+function attachTip(node, it) {
+  const show = (x, y) => {
+    tipEl.replaceChildren();
+    const v = document.createElement("div"); v.className = "t-val"; v.textContent = (it.kind === "PR" ? "+" : "") + czk.format(it.amount);
+    const n = document.createElement("div"); n.className = "t-name";
+    const lk = document.createElement("span"); lk.className = "lk";
+    lk.style.background = kindColor(it.kind);
+    n.appendChild(lk); n.appendChild(document.createTextNode(it.name));
+    const m = document.createElement("div"); m.className = "t-meta";
+    m.textContent = (it.kind === "TP" ? "Trvalý příkaz" + (it.freq ? " · " + it.freq : "")
+        : it.kind === "PR" ? "Pravidelný příjem" + (it.freq ? " · " + it.freq : "") : "Platba (faktura)")
+      + " · splatnost " + fmtDate(it.due) + " · " + ENTITY_LABEL[it.entity];
+    tipEl.append(v, n, m);
+    tipEl.style.display = "block";
+    const r = tipEl.getBoundingClientRect();
+    tipEl.style.left = Math.min(x + 14, window.innerWidth - r.width - 8) + "px";
+    tipEl.style.top = Math.min(y + 14, window.innerHeight - r.height - 8) + "px";
+  };
+  node.addEventListener("pointermove", e => show(e.clientX, e.clientY));
+  node.addEventListener("pointerleave", () => { tipEl.style.display = "none"; });
+  node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); show(r.left + 40, r.top); });
+  node.addEventListener("blur", () => { tipEl.style.display = "none"; });
+}
+
+function renderTable(items) {
+  const body = document.getElementById("d-tableBody");
+  const foot = document.getElementById("d-tableFoot");
+  const firmTh = document.getElementById("d-firmTh");
+  body.replaceChildren(); foot.replaceChildren();
+  const both = state.entity === "both";
+  firmTh.style.display = both ? "" : "none";
+
+  const q = state.search.trim().toLowerCase();
+  const rows = items.filter(i =>
+    (state.typeFilter === "all" || i.kind === state.typeFilter) &&
+    (!q || i.name.toLowerCase().includes(q))
+  );
+
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = both ? 5 : 4; td.className = "empty";
+    td.textContent = "Žádné položky neodpovídají filtru.";
+    tr.appendChild(td); body.appendChild(tr);
+    return;
+  }
+
+  for (const it of rows) {
+    const tr = document.createElement("tr");
+    const tdD = document.createElement("td"); tdD.className = "date"; tdD.textContent = fmtDate(it.due);
+    tr.appendChild(tdD);
+    if (both) {
+      const tdF = document.createElement("td"); tdF.className = "firm"; tdF.textContent = ENTITY_LABEL[it.entity];
+      tr.appendChild(tdF);
+    }
+    const tdN = document.createElement("td"); tdN.textContent = it.name;
+    if (it.kind !== "SA" && it.freq) {
+      const f = document.createElement("span"); f.className = "freq"; f.textContent = " · " + it.freq;
+      tdN.appendChild(f);
+    }
+    tr.appendChild(tdN);
+    const tdT = document.createElement("td"); tdT.className = "typ";
+    const k = document.createElement("span"); k.className = "key";
+    k.style.background = kindColor(it.kind);
+    tdT.appendChild(k);
+    tdT.appendChild(document.createTextNode(kindLabel(it.kind)));
+    tr.appendChild(tdT);
+    const tdA = document.createElement("td"); tdA.className = "num" + (it.kind === "PR" ? " income" : "");
+    tdA.textContent = (it.kind === "PR" ? "+" : "") + czk.format(it.amount);
+    tr.appendChild(tdA);
+    body.appendChild(tr);
+  }
+
+  const exp = rows.filter(i => i.kind !== "PR");
+  const inc = rows.filter(i => i.kind === "PR");
+  const expTotal = exp.reduce((s, i) => s + i.amount, 0);
+  const incTotal = inc.reduce((s, i) => s + i.amount, 0);
+  const footRow = (label, value, cls) => {
+    const trF = document.createElement("tr");
+    const tdL = document.createElement("td"); tdL.colSpan = both ? 4 : 3; tdL.textContent = label;
+    const tdV = document.createElement("td"); tdV.className = "num" + (cls ? " " + cls : ""); tdV.textContent = value;
+    trF.append(tdL, tdV);
+    foot.appendChild(trF);
+  };
+  if (!inc.length) {
+    footRow("Celkem (" + rows.length + " položek)", czk.format(expTotal));
+  } else {
+    if (exp.length) footRow("Výdaje celkem (" + exp.length + " položek)", czk.format(expTotal));
+    footRow("Příjmy celkem (" + inc.length + " položek)", "+" + czk.format(incTotal), "income");
+    const bil = incTotal - expTotal;
+    footRow("Bilance", (bil >= 0 ? "+" : "") + czk.format(bil), bil >= 0 ? "income" : "");
+  }
+}
+
+/* ================= controls ================= */
+
+wireSeg("d-entitySeg", "entity", v => { state.entity = v; render(); });
+wireSeg("d-typeSeg", "type", v => { state.typeFilter = v; renderTable(visibleItems()); });
+wireSeg("d-rangeSeg", "range", v => {
+  state.rangePreset = v;
+  const [f, t] = presetRange(v);
+  state.from = f; state.to = t;
+  document.getElementById("d-fromInput").value = f;
+  document.getElementById("d-toInput").value = t;
+  loadData();
+});
+
+document.getElementById("d-searchInput").addEventListener("input", e => {
+  state.search = e.target.value; renderTable(visibleItems());
+});
+function customChanged() {
+  const f = document.getElementById("d-fromInput").value;
+  const t = document.getElementById("d-toInput").value;
+  if (!f || !t || f > t) return;
+  state.from = f; state.to = t; state.rangePreset = null;
+  for (const b of document.querySelectorAll("#d-rangeSeg button")) b.setAttribute("aria-pressed", "false");
+  loadData();
+}
+document.getElementById("d-fromInput").addEventListener("change", customChanged);
+document.getElementById("d-toInput").addEventListener("change", customChanged);
+document.getElementById("d-refreshBtn").addEventListener("click", () => loadData());
+
+/* ================= údržba trvalých příkazů (přímo v tabulkách TPCLB / TPDATEC) ================= */
+const TP_FREQS = ["Měsíční", "Čtvrtletní", "Pololetní", "Roční", "Týdenní", "14 dní", "Jednorázově"];
+const tpState = { firma: "centrum", data: { centrum: [], datec: [] }, loaded: false, busy: false, editingId: null, adding: false, addTyp: "TP", confirmId: null };
+const TP_TYP_LABEL = { TP: "Výdaj", PR: "Příjem" };
+
+const tpModal = document.getElementById("tpModal");
+const tpStatusEl = document.getElementById("tpStatus");
+const tpNoteEl = document.getElementById("tpNote");
+
+document.getElementById("tpBtn").addEventListener("click", () => {
+  tpModal.classList.remove("hidden");
+  if (!tpState.loaded) tpLoad();
+  else { tpRender(); tpHint(); }
+});
+document.getElementById("tpClose").addEventListener("click", () => tpModal.classList.add("hidden"));
+tpModal.addEventListener("click", e => { if (e.target === tpModal) tpModal.classList.add("hidden"); });
+document.getElementById("tpReloadBtn").addEventListener("click", () => tpLoad());
+function tpStartAdd(typ) {
+  tpState.adding = true; tpState.addTyp = typ === "PR" ? "PR" : "TP";
+  tpState.editingId = null; tpState.confirmId = null; tpSetStatus(""); tpRender();
+}
+document.getElementById("tpAddBtn").addEventListener("click", () => tpStartAdd("TP"));
+document.getElementById("tpAddIncomeBtn").addEventListener("click", () => tpStartAdd("PR"));
+wireSeg("tpFirmaSeg", "firma", v => {
+  tpState.firma = v; tpState.editingId = null; tpState.adding = false; tpState.confirmId = null; tpSetStatus(""); tpRender();
+});
+
+function tpSetStatus(msg, isErr) {
+  tpStatusEl.textContent = msg || "";
+  tpStatusEl.classList.toggle("err", !!isErr);
+}
+function tpHint() {
+  tpNoteEl.textContent = "Nový výdaj nebo pravidelný příjem přidáte tlačítky nahoře nebo řádkem pod tabulkou. Změny se ukládají přímo do databáze a přehled plateb se po uložení sám obnoví. Příjem se v tabulce TP ukládá jako záporná částka.";
+}
+
+/* načtení trvalých příkazů obou firem z databáze */
+async function tpFetchList() {
+  const out = { centrum: [], datec: [] };
+  await Promise.all(Object.keys(out).map(async ent => {
+    const T = DB.tables[ent].tp;
+    out[ent] = (await db.listAll(T.id)).map(r => tpRecord(r, T)).filter(Boolean);
+  }));
+  return out;
+}
+/* přehled načetl trvalé příkazy spolu s kalendářem – převezmeme je, pokud se v editoru zrovna nepracuje */
+function tpRefreshFromDashboard(rows) {
+  if (tpState.busy || tpState.editingId || tpState.adding) return;
+  tpState.data = rows;
+  tpState.loaded = true;
+  if (!tpModal.classList.contains("hidden")) tpRender();
+}
+
+async function tpLoad() {
+  if (tpState.busy) return;
+  tpState.busy = true;
+  tpSetStatus("Načítám trvalé příkazy z databáze…");
+  try {
+    tpState.data = await tpFetchList();
+    tpState.loaded = true;
+    tpSetStatus("");
+    tpHint();
+  } catch (e) {
+    tpSetStatus("Nepodařilo se načíst: " + (e && e.message ? e.message : e), true);
+  } finally {
+    tpState.busy = false;
+    tpRender();
+  }
+}
+
+function tpFreqSelect(current) {
+  const sel = document.createElement("select");
+  const opts = TP_FREQS.slice();
+  if (current && !opts.includes(current)) opts.unshift(current);
+  for (const f of opts) {
+    const o = document.createElement("option");
+    o.value = f; o.textContent = f;
+    if (f === current) o.selected = true;
+    sel.appendChild(o);
+  }
+  return sel;
+}
+
+function tpEditRow(rec) {
+  const tr = document.createElement("tr");
+  tr.className = "tp-editing";
+  const tdN = document.createElement("td");
+  const inN = document.createElement("input");
+  inN.type = "text"; inN.value = rec ? rec.name : ""; inN.placeholder = "Popis";
+  tdN.appendChild(inN);
+  const tdTy = document.createElement("td");
+  const inTy = document.createElement("select");
+  for (const t of ["TP", "PR"]) {
+    const o = document.createElement("option");
+    o.value = t; o.textContent = TP_TYP_LABEL[t];
+    inTy.appendChild(o);
+  }
+  inTy.value = rec ? rec.typ : tpState.addTyp;
+  tdTy.appendChild(inTy);
+  const tdF = document.createElement("td");
+  const inF = tpFreqSelect(rec ? rec.freq : "Měsíční");
+  tdF.appendChild(inF);
+  const tdA = document.createElement("td"); tdA.className = "num";
+  const inA = document.createElement("input");
+  inA.type = "number"; inA.step = "0.01"; inA.min = "0"; inA.value = rec ? rec.amount : "";
+  tdA.appendChild(inA);
+  const tdD = document.createElement("td");
+  const inD = document.createElement("input");
+  inD.type = "date"; inD.value = rec && /^\d{4}-\d{2}-\d{2}/.test(rec.due) ? rec.due.slice(0, 10) : "";
+  tdD.appendChild(inD);
+  const tdX = document.createElement("td"); tdX.className = "tp-act";
+  const bS = document.createElement("button"); bS.textContent = "Uložit";
+  const bC = document.createElement("button"); bC.textContent = "Zrušit";
+  bC.addEventListener("click", () => { tpState.editingId = null; tpState.adding = false; tpSetStatus(""); tpRender(); });
+  let dupConfirmed = false;
+  bS.addEventListener("click", () => {
+    const name = inN.value.trim(), freq = inF.value, amount = parseFloat(inA.value), due = inD.value, typ = inTy.value;
+    if (!name) { tpSetStatus("Vyplňte popis.", true); return; }
+    if (!isFinite(amount) || amount <= 0) { tpSetStatus("Zadejte kladnou částku (typ Výdaj/Příjem určuje směr).", true); return; }
+    if (!due) { tpSetStatus("Vyplňte datum platby.", true); return; }
+    /* kontrola duplicit v rámci firmy (mimo právě editovaný záznam) */
+    const others = tpState.data[tpState.firma].filter(r => !rec || r.id !== rec.id);
+    const key = tpKey(name, freq, amount, typ);
+    const same = others.find(r => tpKey(r.name, r.freq, r.amount, r.typ) === key);
+    if (same) { tpSetStatus("Stejný záznam už existuje (popis, typ, frekvence i částka jsou shodné) – neuloženo, aby nevznikla duplicita.", true); return; }
+    const sameName = others.find(r => tpNorm(r.name) === tpNorm(name));
+    if (sameName && !dupConfirmed) {
+      dupConfirmed = true;
+      tpSetStatus("Záznam s popisem „" + sameName.name + "“ už existuje (" + sameName.freq + ", " + czk.format(sameName.amount) + "). Pokud jde opravdu o jiný příkaz, klikněte na Uložit ještě jednou.", true);
+      return;
+    }
+    /* příjem se ukládá jako záporná částka */
+    tpSubmit(rec ? "update" : "create", { id: rec ? rec.id : "", name, freq, amount: typ === "PR" ? -amount : amount, due });
+  });
+  tdX.append(bS, bC);
+  for (const inp of [inN, inTy, inF, inA, inD]) {
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); bS.click(); }
+      else if (e.key === "Escape") { e.preventDefault(); bC.click(); }
+    });
+  }
+  tr.append(tdN, tdTy, tdF, tdA, tdD, tdX);
+  return tr;
+}
+
+async function tpSubmit(akce, rec) {
+  if (tpState.busy) return;
+  tpState.busy = true;
+  tpSetStatus(akce === "create" ? (rec.amount < 0 ? "Ukládám nový příjem…" : "Ukládám nový příkaz…") : akce === "update" ? "Ukládám změny…" : "Mažu…");
+  const T = DB.tables[tpState.firma].tp;
+  try {
+    let retId = "";
+    if (akce === "delete") {
+      await db.remove(T.id, rec.id);
+    } else {
+      const fields = {};
+      fields[T.name] = rec.name;
+      fields[T.freq] = rec.freq;
+      fields[T.amount] = rec.amount;
+      fields[T.due] = rec.due;
+      const r = akce === "create" ? await db.create(T.id, fields) : await db.update(T.id, rec.id, fields);
+      const saved = r && (r.data && !Array.isArray(r.data) ? r.data : r);
+      retId = saved && saved.id ? String(saved.id) : "";
+    }
+    tpState.editingId = null; tpState.adding = false; tpState.confirmId = null;
+    tpState.busy = false;
+    /* ověření zápisu: znovu načíst tabulku a zkontrolovat, že se změna opravdu promítla */
+    await tpLoad();
+    const list = tpState.data[tpState.firma];
+    const typ = rec.amount < 0 ? "PR" : "TP";
+    const wantKey = akce === "delete" ? null : tpKey(rec.name, rec.freq, Math.abs(rec.amount), typ);
+    if (akce === "delete") {
+      if (list.some(r => r.id === rec.id)) tpSetStatus("Smazání se nepotvrdilo – záznam je v tabulce TP stále. Klikněte na Obnovit seznam a zkuste to znovu.", true);
+      else tpSetStatus("Smazáno a ověřeno.");
+    } else {
+      const id = akce === "create" ? retId : rec.id;
+      const found = id ? list.find(r => r.id === id) : list.find(r => tpKey(r.name, r.freq, r.amount, r.typ) === wantKey);
+      const okFields = found && tpKey(found.name, found.freq, found.amount, found.typ) === wantKey && found.due.slice(0, 10) === rec.due;
+      if (!found) tpSetStatus("Uloženo, ale záznam se v tabulce TP neobjevil – klikněte na Obnovit seznam a zkontrolujte ho.", true);
+      else if (!okFields) tpSetStatus("Uloženo, ale hodnoty v tabulce TP se liší od zadaných (" + found.name + ", " + found.freq + ", " + czk.format(found.amount) + ", " + found.due.slice(0, 10) + ").", true);
+      else {
+        const n = list.filter(r => tpKey(r.name, r.freq, r.amount, r.typ) === wantKey).length;
+        tpSetStatus("Uloženo a ověřeno: " + rec.name + (n > 1 ? " – POZOR, v tabulce je tento záznam " + n + "×." : ""), n > 1);
+      }
+    }
+    tpNoteEl.textContent = "Změna je uložena v databázi, přehled plateb se obnovuje.";
+    loadData();
+    return;
+  } catch (e) {
+    tpSetStatus("Akce se nezdařila: " + (e && e.message ? e.message : e), true);
+  }
+  tpState.busy = false;
+  tpRender();
+}
+
+function tpNorm(s) { return String(s || "").trim().toLowerCase().replace(/\s+/g, " "); }
+function tpKey(name, freq, amount, typ) {
+  return [tpNorm(name), tpNorm(freq), Math.round(Math.abs(Number(amount) || 0) * 100), typ === "PR" ? "PR" : "TP"].join("|");
+}
+
+function tpRender() {
+  const body = document.getElementById("tpBody");
+  const foot = document.getElementById("tpFoot");
+  body.replaceChildren(); foot.replaceChildren();
+  const rows = tpState.data[tpState.firma].slice().sort((a, b) => a.name.localeCompare(b.name, "cs"));
+  if (tpState.adding) body.appendChild(tpEditRow(null));
+  for (const rec of rows) {
+    if (tpState.editingId === rec.id) { body.appendChild(tpEditRow(rec)); continue; }
+    const tr = document.createElement("tr");
+    const tdN = document.createElement("td"); tdN.textContent = rec.name;
+    const tdTy = document.createElement("td"); tdTy.className = "tp-typ";
+    const kk = document.createElement("span"); kk.className = "key"; kk.style.background = kindColor(rec.typ);
+    tdTy.append(kk, document.createTextNode(TP_TYP_LABEL[rec.typ] || "Výdaj"));
+    const tdF = document.createElement("td"); tdF.className = "typ"; tdF.textContent = rec.freq;
+    const tdA = document.createElement("td"); tdA.className = "num" + (rec.typ === "PR" ? " income" : "");
+    tdA.textContent = (rec.typ === "PR" ? "+" : "") + czk.format(rec.amount);
+    const tdD = document.createElement("td"); tdD.className = "date";
+    tdD.textContent = /^\d{4}-\d{2}-\d{2}/.test(rec.due) ? fmtDate(rec.due.slice(0, 10)) : rec.due;
+    const next = tpNextDate(rec.due, rec.freq);
+    if (next && next !== rec.due.slice(0, 10)) {
+      const nx = document.createElement("span"); nx.className = "freq"; nx.title = "Nejbližší platba podle frekvence";
+      nx.textContent = " · příští " + fmtDate(next);
+      tdD.appendChild(nx);
+    }
+    const tdX = document.createElement("td"); tdX.className = "tp-act";
+    const bE = document.createElement("button"); bE.textContent = "Upravit";
+    bE.addEventListener("click", () => { tpState.editingId = rec.id; tpState.adding = false; tpState.confirmId = null; tpSetStatus(""); tpRender(); });
+    const bD = document.createElement("button"); bD.className = "danger";
+    if (tpState.confirmId === rec.id) {
+      bD.textContent = "Opravdu smazat?";
+      bD.addEventListener("click", () => tpSubmit("delete", { id: rec.id }));
+    } else {
+      bD.textContent = "Smazat";
+      bD.addEventListener("click", () => { tpState.confirmId = rec.id; tpRender(); });
+    }
+    tdX.append(bE, bD);
+    tr.append(tdN, tdTy, tdF, tdA, tdD, tdX);
+    body.appendChild(tr);
+  }
+  if (!rows.length && !tpState.adding) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td"); td.colSpan = 6; td.className = "empty";
+    td.textContent = tpState.loaded ? "Žádné trvalé příkazy." : "Data zatím nejsou načtena.";
+    tr.appendChild(td); body.appendChild(tr);
+  }
+  if (!tpState.adding && !tpState.busy) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td"); td.colSpan = 6; td.className = "tp-addrow";
+    const wrap = document.createElement("div"); wrap.className = "tp-addrow-wrap";
+    const b = document.createElement("button"); b.type = "button";
+    b.textContent = "+ Přidat další trvalý příkaz (" + ENTITY_LABEL[tpState.firma] + ")";
+    b.addEventListener("click", () => tpStartAdd("TP"));
+    const bI = document.createElement("button"); bI.type = "button"; bI.className = "income";
+    bI.textContent = "+ Přidat pravidelný příjem (" + ENTITY_LABEL[tpState.firma] + ")";
+    bI.addEventListener("click", () => tpStartAdd("PR"));
+    wrap.append(b, bI); td.appendChild(wrap); tr.appendChild(td); body.appendChild(tr);
+  }
+  const focusRow = body.querySelector("tr.tp-editing");
+  if (focusRow) {
+    const inp = focusRow.querySelector("input[type=text]");
+    if (inp) inp.focus();
+  }
+  if (rows.length) {
+    const exp = rows.filter(r => r.typ !== "PR"), inc = rows.filter(r => r.typ === "PR");
+    const sum = a => a.reduce((s, r) => s + r.amount, 0);
+    const footRow = (label, value, cls) => {
+      const trF = document.createElement("tr");
+      const tdL = document.createElement("td"); tdL.colSpan = 3; tdL.textContent = label;
+      const tdV = document.createElement("td"); tdV.className = "num" + (cls ? " " + cls : ""); tdV.textContent = value;
+      const tdR = document.createElement("td"); tdR.colSpan = 2;
+      trF.append(tdL, tdV, tdR);
+      foot.appendChild(trF);
+    };
+    if (!inc.length) {
+      footRow("Celkem (" + rows.length + " příkazů)", czk.format(sum(exp)));
+    } else {
+      if (exp.length) footRow("Výdaje celkem (" + exp.length + ")", czk.format(sum(exp)));
+      footRow("Příjmy celkem (" + inc.length + ")", "+" + czk.format(sum(inc)), "income");
+      const bil = sum(inc) - sum(exp);
+      footRow("Rozdíl (příjmy − výdaje)", (bil >= 0 ? "+" : "") + czk.format(bil), bil >= 0 ? "income" : "");
+    }
+  }
+}
+
+  /* ================= start agendy ================= */
+  function start() {
+    const [f, t] = presetRange("twoMonths");
+    state.from = f; state.to = t;
+    document.getElementById("d-fromInput").value = f;
+    document.getElementById("d-toInput").value = t;
+    loadData();
+  }
+  return { start: start, reload: loadData };
+})();
+
+/* ================= agenda: saldo odběratelů ================= */
+const APP_ODB = (function () {
+/* ================= embedded snapshot (fallback when the database is unreachable) ================= */
+const SNAPSHOT_DATE = "2026-07-14";
+const SNAPSHOT = {
+  centrum: [
+`Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 5569 CZK
+
+Splatnost: 2025-02-28
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 2507 CZK
+
+Splatnost: 2025-11-30
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 7723 CZK
+
+Splatnost: 2025-12-31
+Text: Zdenka Jandíková
+
+Castka: -690 CZK
+
+Splatnost: 2026-01-27
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 766 CZK
+
+Splatnost: 2026-01-30
+Text: Věra Semotamová
+
+Castka: 2760 CZK
+
+Splatnost: 2026-02-10
+Text: Pojišťovna VZP, a.s.
+
+Castka: -71788 CZK
+
+Splatnost: 2026-02-28
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 5843 CZK
+
+Splatnost: 2026-02-28
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 2969 CZK
+
+Splatnost: 2026-03-10
+Text: Věra Semotamová
+
+Castka: 1035 CZK
+
+Splatnost: 2026-03-30
+Text: Pojišťovna VZP, a.s.
+
+Castka: -71329 CZK
+
+Splatnost: 2026-03-31
+Text: Zdravotní pojišťovna ministerstva vnitra České republiky
+
+Castka: 1056 CZK
+
+Splatnost: 2026-04-21
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 12145 CZK
+
+Splatnost: 2026-04-30
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 1783 CZK
+
+Splatnost: 2026-04-30
+Text: Pojišťovna VZP, a.s.
+
+Castka: -90358 CZK
+
+Splatnost: 2026-04-30
+Text: Kalina Josef
+
+Castka: 3150 CZK
+
+Splatnost: 2026-05-31
+Text: Jitka Hujíčková
+
+Castka: 2070 CZK
+
+Splatnost: 2026-05-31
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 2924 CZK
+
+Splatnost: 2026-06-05
+Text: Pojišťovna VZP, a.s.
+
+Castka: -39157 CZK
+
+Splatnost: 2026-06-06
+Text: Jitka Hujíčková
+
+Castka: 690 CZK
+
+Splatnost: 2026-06-25
+Text: Milan Hanáček
+
+Castka: 1380 CZK
+
+Splatnost: 2026-06-25
+Text: JANA ŠLÁGROVÁ
+
+Castka: 950 CZK
+
+Splatnost: 2026-06-30
+Text: Pojišťovna VZP, a.s.
+
+Castka: 36020 CZK
+
+Splatnost: 2026-06-30
+Text: Pojišťovna VZP, a.s.
+
+Castka: 26562.25 CZK
+
+Splatnost: 2026-06-30
+Text: RBP, zdravotní pojišťovna
+
+Castka: -671.61 CZK
+
+Splatnost: 2026-06-30
+Text: Česká průmyslová zdravotní pojišťovna
+
+Castka: -890.2 CZK
+
+Splatnost: 2026-06-30
+Text: Oborová zdravotní pojišťovna zaměstnanců bank, pojišťoven a stavebnictví
+
+Castka: -1955.87 CZK
+
+Splatnost: 2026-06-30
+Text: František Mol
+
+Castka: 950 CZK
+
+Splatnost: 2026-07-11
+Text: Česká správa sociálního zabezpečení — Institut posuzování zdravotního stavu Zlín
+
+Castka: 1114 CZK
+
+Splatnost: 2026-07-20
+Text: JANA ŠLÁGROVÁ
+
+Castka: 950 CZK
+
+Splatnost: 2026-07-31
+Text: MARIE VAVRUŠOVÁ
+
+Castka: 950 CZK
+
+Splatnost: 2026-07-31
+Text: Oborová zdravotní pojišťovna zaměstnanců bank, pojišťoven a stavebnictví
+
+Castka: 11802 CZK
+
+Splatnost: 2026-07-31
+Text: Česká průmyslová zdravotní pojišťovna
+
+Castka: 42234 CZK
+
+Splatnost: 2026-07-31
+Text: Česká průmyslová zdravotní pojišťovna
+
+Castka: 122299 CZK
+
+Splatnost: 2026-07-31
+Text: RBP, zdravotní pojišťovna
+
+Castka: 55661 CZK
+
+Splatnost: 2026-07-31
+Text: RBP, zdravotní pojišťovna
+
+Castka: 6785 CZK
+
+Splatnost: 2026-07-31
+Text: Zdravotní pojišťovna ministerstva vnitra České republiky
+
+Castka: 38021 CZK
+
+Splatnost: 2026-07-31
+Text: Zdravotní pojišťovna ministerstva vnitra České republiky
+
+Castka: 8497 CZK
+
+Splatnost: 2026-07-31
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 9192 CZK
+
+Splatnost: 2026-07-31
+Text: Vojenská zdravotní pojišťovna České republiky
+
+Castka: 5380 CZK
+
+Splatnost: 2026-07-31
+Text: Pojišťovna VZP, a.s.
+
+Castka: 729925 CZK
+
+Splatnost: 2026-07-31
+Text: Pojišťovna VZP, a.s.
+
+Castka: 334081 CZK
+
+Splatnost: 2026-07-31
+Text: Jana Drmolová
+
+Castka: 950 CZK
+
+Splatnost: 2026-07-31
+Text: Markéta Jančíková
+
+Castka: 950 CZK
+
+Splatnost: 2026-07-31
+Text: Krajčová Alena
+
+Castka: 950 CZK
+
+Splatnost: 2026-07-31
+Text: Zdeňka Valentová
+
+Castka: 1490 CZK
+
+Splatnost: 2026-07-31
+`],
+  datec: [
+`Text: M+perfekt s.r.o.
+
+Castka: 6817.9 CZK
+
+Splatnost: 2025-12-31
+Text: The View Wellness Club Fuengirola S.L.
+
+Castka: 923.19 CZK
+
+Splatnost: 2026-04-12
+Text: ViVi Holiday Homes SL
+
+Castka: -1158.84 CZK
+
+Splatnost: 2026-06-30
+Text: Mgr. Lenka Popovská
+
+Castka: 3500 CZK
+
+Splatnost: 2026-07-31
+Text: Centrum pro léčbu bolesti a paliativní medicínu s.r.o.
+
+Castka: 13037 CZK
+
+Splatnost: 2026-07-31
+Text: Centrum pro léčbu bolesti a paliativní medicínu s.r.o.
+
+Castka: 31500 CZK
+
+Splatnost: 2026-07-31
+`]
+};
+
+/* ================= parsing ================= */
+
+function todayIso() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function parseVystup(text, entity) {
+  const items = [];
+  const today = todayIso();
+  const re = /Text:\s*([\s\S]*?)\n+Castka:\s*(-?[\d.]+)\s*CZK\n+Splatnost:\s*(\d{4}-\d{2}-\d{2})/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1].replace(/\s*\n\s*/g, " — ").trim();
+    if (!name || /^SOUCET/i.test(name)) continue;
+    const amount = parseFloat(m[2]);            // signed: minus = přeplatek/dobropis
+    const due = m[3];
+    if (!isFinite(amount)) continue;
+    const kind = due < today ? "PO" : "OK";     // PO = po splatnosti, OK = ve splatnosti
+    items.push({ kind, name, amount, due, entity });
+  }
+  return items;
+}
+
+function overdueDays(due) {
+  const [y, m, d] = due.split("-").map(Number);
+  const ms = new Date().setHours(0, 0, 0, 0) - new Date(y, m - 1, d).getTime();
+  return Math.max(0, Math.round(ms / 86400000));
+}
+
+/* ================= živá data: Softr Database ================= */
+/* Saldokonto odběratelů se čte přímo z tabulek CLBSAOD / DATECSAOD (Název, Saldo 1, Datum splatnosti).
+   Bez API klíče nebo při chybě se použije vestavěný snapshot. */
+async function fetchDb() {
+  const today = todayIso();
+  const result = { centrum: [], datec: [] };
+  await Promise.all(["centrum", "datec"].map(async ent => {
+    const T = DB.tables[ent].saod;
+    const items = [];
+    for (const r of await db.listAll(T.id)) {
+      const amount = toNumber(fieldOf(r, T.amount));   // signed: minus = přeplatek/dobropis
+      const due = toIsoDate(fieldOf(r, T.due));
+      const name = String(fieldOf(r, T.name) || "").trim();
+      if (!isFinite(amount) || amount === 0 || !due) continue;
+      const kind = due < today ? "PO" : "OK";          // PO = po splatnosti, OK = ve splatnosti
+      items.push({ kind, name: name || "(bez názvu)", amount, due, entity: ent });
+    }
+    result[ent] = items;
+  }));
+  return result;
+}
+
+/* ================= state ================= */
+const state = {
+  entity: "centrum",
+  from: null, to: null,          // volitelný filtr splatnosti (klientsky)
+  noIns: false,                  // Bez pojišťoven — skrýt subjekty s „pojišťovna" v názvu
+  typeFilter: "all",
+  search: "",
+  live: false,
+  lastUpdated: null,
+  all: { centrum: [], datec: [] }   // všechny načtené položky
+};
+
+/* ================= data loading ================= */
+let loadSeq = 0;
+async function loadData() {
+  const seq = ++loadSeq;
+  const content = document.getElementById("o-content");
+  const btn = document.getElementById("o-refreshBtn");
+  content.classList.add("loading");
+  btn.disabled = true;
+  setStatus("snap", "načítám…");
+
+  let live = true, liveError = null, noKey = false;
+  const result = { centrum: [], datec: [] };
+  try {
+    const r = await fetchDb();
+    result.centrum = r.centrum;
+    result.datec = r.datec;
+  } catch (e) {
+    live = false;
+    noKey = !!(e && e.noKey);
+    liveError = e && e.message ? e.message : String(e);
+  }
+  if (!live) {
+    for (const ent of ["centrum", "datec"]) {
+      result[ent] = SNAPSHOT[ent].flatMap(t => parseVystup(t, ent));
+    }
+  }
+  if (seq !== loadSeq) return;   // a newer load superseded this one
+
+  state.all = result;
+  state.live = live;
+  state.lastUpdated = new Date();
+  content.classList.remove("loading");
+  btn.disabled = false;
+
+  const notice = document.getElementById("o-notice");
+  if (live) {
+    notice.classList.add("hidden");
+    setStatus("live", "Živá data ze Softr Database · " + state.lastUpdated.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }));
+  } else {
+    setStatus("snap", "Snapshot ze " + fmtDate(SNAPSHOT_DATE));
+    showLoadNotice(notice, SNAPSHOT_DATE, liveError, noKey);
+  }
+  render();
+}
+
+function setStatus(mode, text) {
+  const el = document.getElementById("o-status");
+  el.replaceChildren();
+  const dot = document.createElement("span");
+  dot.className = "dot " + mode;
+  el.appendChild(dot);
+  el.appendChild(document.createTextNode(text));
+}
+
+/* ================= formatting ================= */
+
+/* ================= selection & rendering ================= */
+function visibleItems() {
+  let items = state.entity === "both"
+    ? state.all.centrum.concat(state.all.datec)
+    : state.all[state.entity].slice();
+  if (state.noIns) items = items.filter(i => !/poji[šs][ťt]ovna/i.test(i.name));
+  if (state.from) items = items.filter(i => i.due >= state.from);
+  if (state.to) items = items.filter(i => i.due <= state.to);
+  items.sort((a, b) => a.due < b.due ? -1 : a.due > b.due ? 1 : Math.abs(b.amount) - Math.abs(a.amount));
+  return items;
+}
+
+function render() {
+  const items = visibleItems();
+  renderKpis(items);
+  renderShare(items);
+  renderTopBars(items);
+  renderTable(items);
+}
+
+function sumBy(items, kind) {
+  return items.filter(i => i.kind === kind).reduce((s, i) => s + i.amount, 0);
+}
+
+function renderKpis(items) {
+  const el = document.getElementById("o-kpis");
+  el.replaceChildren();
+  const po = sumBy(items, "PO"), ok = sumBy(items, "OK"), total = po + ok;
+  const nPo = items.filter(i => i.kind === "PO").length;
+  const nOk = items.filter(i => i.kind === "OK").length;
+  const prepl = items.filter(i => i.amount < 0).reduce((s, i) => s + i.amount, 0);
+
+  const overdue = items.filter(i => i.kind === "PO");
+  let oldTxt = "—", oldSub = "nic po splatnosti";
+  if (overdue.length) {
+    const oldest = overdue[0];
+    oldTxt = overdueDays(oldest.due) + " dní";
+    oldSub = "nejstarší: " + oldest.name.slice(0, 28) + (oldest.name.length > 28 ? "…" : "") + " · " + fmtDate(oldest.due);
+  }
+
+  el.appendChild(tile("Pohledávky celkem (netto)", czk0.format(total),
+    (nPo + nOk) + " položek" + (prepl < 0 ? " · z toho přeplatky " + czk0.format(prepl) : ""), true));
+  el.appendChild(tile("Po splatnosti", czk0.format(po), nPo + " položek · " + pct(po, total), false, "var(--series-1)"));
+  el.appendChild(tile("Ve splatnosti", czk0.format(ok), nOk + " položek · " + pct(ok, total), false, "var(--series-2)"));
+  el.appendChild(tile("Nejdéle po splatnosti", oldTxt, oldSub));
+}
+
+function renderShare(items) {
+  const bar = document.getElementById("o-shareBar");
+  const labels = document.getElementById("o-shareLabels");
+  bar.replaceChildren(); labels.replaceChildren();
+  /* podíl počítáme jen z kladných pohledávek, přeplatky by sloupec zkreslily */
+  const po = items.filter(i => i.kind === "PO" && i.amount > 0).reduce((s, i) => s + i.amount, 0);
+  const ok = items.filter(i => i.kind === "OK" && i.amount > 0).reduce((s, i) => s + i.amount, 0);
+  const total = po + ok;
+  if (total <= 0) { labels.textContent = "V období nejsou žádné kladné pohledávky."; return; }
+  const segPo = document.createElement("div");
+  segPo.className = "segm"; segPo.style.background = "var(--series-1)";
+  segPo.style.flex = String(po);
+  const segOk = document.createElement("div");
+  segOk.className = "segm"; segOk.style.background = "var(--series-2)";
+  segOk.style.flex = String(ok);
+  bar.append(segPo, segOk);
+
+  const lPo = document.createElement("span");
+  const sPo = document.createElement("strong"); sPo.textContent = czk0.format(po);
+  lPo.append("Po splatnosti ", sPo, " (" + pct(po, total) + ")");
+  const lOk = document.createElement("span");
+  const sOk = document.createElement("strong"); sOk.textContent = czk0.format(ok);
+  lOk.append("Ve splatnosti ", sOk, " (" + pct(ok, total) + ")");
+  labels.append(lPo, lOk);
+}
+
+function renderTopBars(items) {
+  const el = document.getElementById("o-topBars");
+  el.replaceChildren();
+  const top = items.slice().sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 8);
+  if (!top.length) { const d = document.createElement("div"); d.className = "empty"; d.textContent = "Žádná data."; el.appendChild(d); return; }
+  const max = Math.abs(top[0].amount);
+  for (const it of top) {
+    const name = document.createElement("div");
+    name.className = "bname";
+    name.textContent = (state.entity === "both" ? ENTITY_LABEL[it.entity] + " · " : "") + it.name;
+    const track = document.createElement("div");
+    track.className = "btrack"; track.tabIndex = 0;
+    const fill = document.createElement("div");
+    fill.className = "bfill";
+    fill.style.width = Math.max(2, Math.abs(it.amount) / max * 72) + "%";
+    fill.style.background = it.kind === "PO" ? "var(--series-1)" : "var(--series-2)";
+    if (it.amount < 0) fill.style.opacity = "0.45";
+    const val = document.createElement("span");
+    val.className = "bval"; val.textContent = czk0.format(it.amount);
+    track.append(fill, val);
+    attachTip(track, it);
+    el.append(name, track);
+  }
+}
+
+/* tooltip */
+const tipEl = document.getElementById("tip");
+function attachTip(node, it) {
+  const show = (x, y) => {
+    tipEl.replaceChildren();
+    const v = document.createElement("div"); v.className = "t-val"; v.textContent = czk.format(it.amount);
+    const n = document.createElement("div"); n.className = "t-name";
+    const lk = document.createElement("span"); lk.className = "lk";
+    lk.style.background = it.kind === "PO" ? "var(--series-1)" : "var(--series-2)";
+    n.appendChild(lk); n.appendChild(document.createTextNode(it.name));
+    const m = document.createElement("div"); m.className = "t-meta";
+    m.textContent = (it.kind === "PO" ? "Po splatnosti " + overdueDays(it.due) + " dní" : "Ve splatnosti")
+      + (it.amount < 0 ? " · přeplatek/dobropis" : "")
+      + " · splatnost " + fmtDate(it.due) + " · " + ENTITY_LABEL[it.entity];
+    tipEl.append(v, n, m);
+    tipEl.style.display = "block";
+    const r = tipEl.getBoundingClientRect();
+    tipEl.style.left = Math.min(x + 14, window.innerWidth - r.width - 8) + "px";
+    tipEl.style.top = Math.min(y + 14, window.innerHeight - r.height - 8) + "px";
+  };
+  node.addEventListener("pointermove", e => show(e.clientX, e.clientY));
+  node.addEventListener("pointerleave", () => { tipEl.style.display = "none"; });
+  node.addEventListener("focus", () => { const r = node.getBoundingClientRect(); show(r.left + 40, r.top); });
+  node.addEventListener("blur", () => { tipEl.style.display = "none"; });
+}
+
+function renderTable(items) {
+  const body = document.getElementById("o-tableBody");
+  const foot = document.getElementById("o-tableFoot");
+  const firmTh = document.getElementById("o-firmTh");
+  body.replaceChildren(); foot.replaceChildren();
+  const both = state.entity === "both";
+  firmTh.style.display = both ? "" : "none";
+
+  const q = state.search.trim().toLowerCase();
+  const rows = items.filter(i =>
+    (state.typeFilter === "all" || i.kind === state.typeFilter) &&
+    (!q || i.name.toLowerCase().includes(q))
+  );
+
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = both ? 5 : 4; td.className = "empty";
+    td.textContent = "Žádné položky neodpovídají filtru.";
+    tr.appendChild(td); body.appendChild(tr);
+    return;
+  }
+
+  for (const it of rows) {
+    const tr = document.createElement("tr");
+    const tdD = document.createElement("td"); tdD.className = "date"; tdD.textContent = fmtDate(it.due);
+    tr.appendChild(tdD);
+    if (both) {
+      const tdF = document.createElement("td"); tdF.className = "firm"; tdF.textContent = ENTITY_LABEL[it.entity];
+      tr.appendChild(tdF);
+    }
+    const tdN = document.createElement("td"); tdN.textContent = it.name;
+    tr.appendChild(tdN);
+    const tdT = document.createElement("td"); tdT.className = "typ";
+    const k = document.createElement("span"); k.className = "key";
+    k.style.background = it.kind === "PO" ? "var(--series-1)" : "var(--series-2)";
+    tdT.appendChild(k);
+    tdT.appendChild(document.createTextNode(it.kind === "PO" ? "Po splatnosti" : "Ve splatnosti"));
+    if (it.kind === "PO") {
+      const o = document.createElement("span"); o.className = "overdays"; o.textContent = " · " + overdueDays(it.due) + " dní";
+      tdT.appendChild(o);
+    }
+    tr.appendChild(tdT);
+    const tdA = document.createElement("td"); tdA.className = "num" + (it.amount < 0 ? " neg" : "");
+    tdA.textContent = czk.format(it.amount);
+    tr.appendChild(tdA);
+    body.appendChild(tr);
+  }
+
+  const total = rows.reduce((s, i) => s + i.amount, 0);
+  const trF = document.createElement("tr");
+  const tdL = document.createElement("td"); tdL.colSpan = both ? 4 : 3;
+  tdL.textContent = "Celkem netto (" + rows.length + " položek)";
+  const tdV = document.createElement("td"); tdV.className = "num"; tdV.textContent = czk.format(total);
+  trF.append(tdL, tdV);
+  foot.appendChild(trF);
+}
+
+/* ================= controls ================= */
+
+wireSeg("o-entitySeg", "entity", v => { state.entity = v; render(); });
+wireSeg("o-typeSeg", "type", v => { state.typeFilter = v; renderTable(visibleItems()); });
+
+document.getElementById("o-noInsBtn").addEventListener("click", () => {
+  state.noIns = !state.noIns;
+  document.getElementById("o-noInsBtn").setAttribute("aria-pressed", String(state.noIns));
+  render();
+});
+document.getElementById("o-searchInput").addEventListener("input", e => {
+  state.search = e.target.value; renderTable(visibleItems());
+});
+function customChanged() {
+  state.from = document.getElementById("o-fromInput").value || null;
+  state.to = document.getElementById("o-toInput").value || null;
+  render();
+}
+document.getElementById("o-fromInput").addEventListener("change", customChanged);
+document.getElementById("o-toInput").addEventListener("change", customChanged);
+document.getElementById("o-clearRangeBtn").addEventListener("click", () => {
+  document.getElementById("o-fromInput").value = "";
+  document.getElementById("o-toInput").value = "";
+  state.from = null; state.to = null;
+  render();
+});
+document.getElementById("o-refreshBtn").addEventListener("click", () => loadData());
+
+  /* ================= start agendy ================= */
+  return { start: function () { loadData(); }, reload: loadData };
+})();
+
+const APPS = { dod: APP_DOD, odb: APP_ODB };
+
+/* ================= sdílené: přístupová brána ================= */
+
+function sha256(str) {
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bytes = Array.from(new TextEncoder().encode(str));
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push((i >= 4 ? 0 : (bitLen / Math.pow(2, i * 8))) & 0xff);
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < bytes.length; off += 64) {
+    const w = new Array(64);
+    for (let i = 0; i < 16; i++)
+      w[i] = (bytes[off+i*4]<<24) | (bytes[off+i*4+1]<<16) | (bytes[off+i*4+2]<<8) | bytes[off+i*4+3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rr(w[i-15],7) ^ rr(w[i-15],18) ^ (w[i-15]>>>3);
+      const s1 = rr(w[i-2],17) ^ rr(w[i-2],19) ^ (w[i-2]>>>10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let [a,b,c,d,e,f,g,h] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) | 0;
+      h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
+    }
+    H = H.map((v, i) => (v + [a,b,c,d,e,f,g,h][i]) | 0);
+  }
+  return H.map(v => (v >>> 0).toString(16).padStart(8, "0")).join("");
+}
+
+const ACCESS = {
+  hash: "548b1562bfb9532c7b6fc418c1493a13425dffdf5ef1d68adafeccd03dd1da5f",
+  storageKey: "saldaAccess_v1",
+  legacyKeys: ["saldoDodavateluAccess_v1", "saldoOdberateluAccess_v1"]
+};
+
+/* ================= přepínač agend ================= */
+const TAB_KEY = "saldaTab_v1";
+const PANELS = { dod: document.getElementById("panel-dod"), odb: document.getElementById("panel-odb") };
+const started = { dod: false, odb: false };
+
+function showMode(mode) {
+  if (!PANELS[mode]) mode = "dod";
+  document.body.setAttribute("data-mode", mode);
+  for (const key of Object.keys(PANELS)) PANELS[key].hidden = (key !== mode);
+  for (const b of document.querySelectorAll("#appTabs button")) {
+    b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+  }
+  document.getElementById("tip").style.display = "none";
+  store.set(TAB_KEY, mode);
+  if (!started[mode]) { started[mode] = true; APPS[mode].start(); }
+}
+
+document.getElementById("appTabs").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (btn && btn.dataset.mode) showMode(btn.dataset.mode);
+});
+
+/* ================= nastavení připojení k databázi ================= */
+const dbModal = document.getElementById("dbModal");
+const dbKeyInput = document.getElementById("dbKeyInput");
+const dbStatusEl = document.getElementById("dbStatus");
+function dbSetStatus(msg, isErr) { dbStatusEl.textContent = msg || ""; dbStatusEl.classList.toggle("err", !!isErr); }
+function dbOpen() {
+  dbKeyInput.value = db.key();
+  dbSetStatus(db.hasKey() ? "API klíč je uložen v tomto prohlížeči." : "API klíč zatím není zadán – bez něj se zobrazuje jen snapshot.");
+  dbModal.classList.remove("hidden");
+  dbKeyInput.focus();
+}
+function dbClose() { dbModal.classList.add("hidden"); }
+function reloadStartedAgendas() {
+  for (const mode of Object.keys(APPS)) if (started[mode]) APPS[mode].reload();
+}
+document.getElementById("dbBtn").addEventListener("click", dbOpen);
+document.getElementById("dbClose").addEventListener("click", dbClose);
+dbModal.addEventListener("click", e => { if (e.target === dbModal) dbClose(); });
+document.getElementById("dbTestBtn").addEventListener("click", async () => {
+  const key = dbKeyInput.value.trim();
+  if (!key) { dbSetStatus("Vložte API klíč.", true); return; }
+  dbSetStatus("Testuji připojení…");
+  try {
+    const n = await db.probe(key);
+    dbSetStatus("Připojení funguje" + (n != null ? " (tabulka TPCLB: " + n + " záznamů)" : "") + ".");
+  } catch (e) {
+    dbSetStatus("Připojení se nezdařilo: " + (e && e.message ? e.message : e), true);
+  }
+});
+document.getElementById("dbSaveBtn").addEventListener("click", () => {
+  const key = dbKeyInput.value.trim();
+  if (!key) { dbSetStatus("Vložte API klíč (nebo použijte Odebrat klíč).", true); return; }
+  if (!store.set(DB.storageKey, key)) { dbSetStatus("Prohlížeč nedovolil klíč uložit (soukromý režim?).", true); return; }
+  dbClose();
+  reloadStartedAgendas();
+});
+document.getElementById("dbClearBtn").addEventListener("click", () => {
+  store.remove(DB.storageKey);
+  dbKeyInput.value = "";
+  dbSetStatus("API klíč odebrán – přehledy se přepnou na snapshot.");
+  reloadStartedAgendas();
+});
+dbKeyInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("dbSaveBtn").click(); }
+  else if (e.key === "Escape") { e.preventDefault(); dbClose(); }
+});
+
+function startApp() {
+  document.getElementById("gate").classList.add("hidden");
+  showMode(store.get(TAB_KEY) || "dod");
+  if (!db.hasKey()) dbOpen();
+}
+
+(function initGate() {
+  const keys = [ACCESS.storageKey].concat(ACCESS.legacyKeys);
+  if (keys.some(k => store.get(k) === ACCESS.hash)) { startApp(); return; }
+  const form = document.getElementById("gateForm");
+  const input = document.getElementById("gateInput");
+  const err = document.getElementById("gateErr");
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const key = input.value.trim();
+    if (key.length !== 32) { err.textContent = "Klíč musí mít přesně 32 znaků (zadáno " + key.length + ")."; return; }
+    if (sha256(key) !== ACCESS.hash) { err.textContent = "Neplatný klíč, zkuste to znovu."; input.select(); return; }
+    err.textContent = "";
+    const saved = store.set(ACCESS.storageKey, ACCESS.hash);
+    if (!saved) document.getElementById("gateNote").textContent =
+      "Pozn.: prohlížeč nedovolil klíč uložit — příště bude potřeba ho zadat znovu.";
+    startApp();
+  });
+  input.focus();
+})();
+</script>
+<footer class="jhn-copyright" style="margin-top:2.5rem;padding:1.1rem 0;text-align:center;font-size:.75rem;line-height:1.4;opacity:.55;">© 2026 Ing. Jindřich Hegmon — DATEC/CLB. All rights reserved.</footer>
+</body>
+</html>
