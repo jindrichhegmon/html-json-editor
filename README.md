@@ -1,6 +1,6 @@
 # HTML a JSON editor
 
-Jednoduchý editor HTML, JSON, CSV, Pythonu a prostého textu v jednom souboru (`html-json-editor.html`, ~350 KB, funguje offline – CodeMirror 5 je vložen přímo do souboru).
+Jednoduchý editor HTML, JSON, CSV, Pythonu a prostého textu v jednom souboru (`html-json-editor.html`, ~430 KB, funguje offline – CodeMirror 5 je vložen přímo do souboru). Obsahuje panel **Claude** pro dotazy na kód a návrhy změn, i hromadně nad soubory ve složce (vyžaduje vlastní API klíč Anthropic).
 
 - Online: **https://htmledit.hegmonfamily.com** (alias https://html-json-editor.netlify.app; nasazuje se automaticky z větve `main`)
 - Repozitář: https://github.com/jindrichhegmon/html-json-editor
@@ -30,6 +30,20 @@ Typ se pozná podle přípony (u souboru bez přípony podle obsahu) a jde přep
 - Živý náhled HTML vedle editoru (roztažitelný oddělovač) nebo v novém okně.
 - Formátovat: JSON pretty-print / Minifikovat; HTML přeodsazení podle vnoření (obsah `<pre>`, `<script>`, `<style>` se nemění).
 - Drag & drop souboru do okna, obnova rozepsaného dokumentu po zavření prohlížeče (localStorage), varování při zavření s neuloženými změnami.
+- **Claude** (⌘K / Ctrl+K) – panel s AI asistentem: zadáte pokyn a Claude ho provede nad otevřeným dokumentem, nad vybraným textem, nebo hromadně nad zaškrtnutými soubory z pracovní složky. Viz níže.
+
+## Claude – dotazy na kód a návrhy změn
+Tlačítko **✦ Claude** otevře panel vpravo vedle editoru (stejný princip jako v JHN SSL Studio):
+
+1. V nastavení ⚙ vložte svůj API klíč Anthropic (získáte v [Anthropic Console](https://console.anthropic.com/settings/keys)). Klíč se ukládá jen v prohlížeči (localStorage) a posílá se přímo na `api.anthropic.com`; použití jde na váš účet Anthropic. Volitelně zvolte model (výchozí Claude Opus 5; dále Sonnet 5, Haiku 4.5) a úsilí.
+2. Napište pokyn („Najdi chyby a navrhni opravu“, „Přidej ke všem obrázkům atribut alt“, „Vysvětli, co skript dělá“…). Posledních 12 pokynů se pamatuje jako klikací historie – hodí se pro opakované hromadné zpracování.
+3. Zvolte **rozsah**: aktuální dokument · jen vybraný text · soubory z pracovní složky (zaškrtnete, které; zpracovávají se postupně s průběhem).
+4. Zvolte **úkol**:
+   - **Dotaz / analýza** – Claude odpoví (řádky posílá očíslované, takže se odkazuje na konkrétní čísla řádků).
+   - **Navrhnout změny** – Claude vrátí celý upravený soubor. Panel zobrazí shrnutí, barevný diff (+/−) a tlačítka **Použít do editoru** (vrátit lze ⌘Z), **Nahradit výběr**, u souborů ze složky **Uložit do souboru** (po potvrzení přepíše soubor na disku) nebo **Otevřít v editoru s návrhem**.
+5. Odeslat = tlačítko nebo ⌘⏎ / Ctrl+Enter; běžící dávku lze zastavit. Odpovědi se streamují, u každé je počet vstupních/výstupních tokenů.
+
+Bez API klíče panel funguje jen jako nastavení; editor sám zůstává plně offline.
 
 ## Zkratky
 | Akce | Mac | Windows |
@@ -43,6 +57,8 @@ Typ se pozná podle přípony (u souboru bez přípony podle obsahu) a jde přep
 | Komentář | ⌘/ | Ctrl+/ |
 | Sbalit blok | Ctrl+Q | Ctrl+Q |
 | Skok na párový tag | ⌘J | Ctrl+J |
+| Panel Claude | ⌘K | Ctrl+K |
+| Odeslat pokyn Claude (v panelu) | ⌘⏎ | Ctrl+Enter |
 
 ## Struktura repozitáře
 ```

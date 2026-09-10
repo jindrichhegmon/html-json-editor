@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 – 2026-09-10
+- Nové tlačítko **✦ Claude** (⌘K / Ctrl+K): panel s AI asistentem vedle editoru – zadáte pokyn a Claude ho provede nad otevřeným dokumentem, vybraným textem, nebo hromadně nad zaškrtnutými soubory z pracovní složky (stejný princip jako v JHN SSL Studio)
+- Dva úkoly: **Dotaz / analýza** (odpověď s odkazy na čísla řádků) a **Navrhnout změny** (celý upravený soubor, barevný diff, „Použít do editoru“ / „Nahradit výběr“ / „Uložit do souboru“ / „Otevřít v editoru s návrhem“)
+- Nastavení ⚙: API klíč Anthropic (jen v prohlížeči), model (Opus 5 výchozí, Sonnet 5, Haiku 4.5), úsilí; streamované odpovědi, počet tokenů, zastavení dávky, historie posledních pokynů
+- Zkratka ⌘⏎ / Ctrl+Enter odešle pokyn; stav panelu se pamatuje
+
 ## 1.3.0 – 2026-09-09
 - Volba cílové složky při ukládání: nové menu **Složka** – vybrat pracovní složku na disku, uložit do ní aktuální soubor (pod stejným nebo jiným názvem, s dotazem před přepsáním) a otevřít z ní libovolný soubor; složka se pamatuje i po zavření prohlížeče
 - „Uložit jako…" otevírá dialog ve složce původního souboru (nebo v pracovní složce)
