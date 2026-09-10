@@ -1,0 +1,5 @@
+# Přidat do /etc/caddy/Caddyfile na VPS a `systemctl reload caddy`.
+kniha.95-216-201-2.sslip.io {
+    reverse_proxy 127.0.0.1:3092
+    encode gzip
+}

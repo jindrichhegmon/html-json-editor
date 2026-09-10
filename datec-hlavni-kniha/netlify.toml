@@ -1,0 +1,18 @@
+# Hlavní kniha Centrum & Datec na Netlify: jen frontend (public/), volání /api se přeposílají na server na VPS,
+# protože firewall SQL Serveru pouští jen pevnou IP adresu VPS.
+[build]
+  publish = "public"
+  command = "echo 'bez buildu'"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://kniha.95-216-201-2.sslip.io/api/:splat"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

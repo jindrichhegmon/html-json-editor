@@ -1,0 +1,14 @@
+{
+  "name": "datec-hlavni-kniha",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hlavní kniha Centrum & Datec – porovnání let a průzkumník účtů přímo z Heliosu (TabDenik), samostatný Node server",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "mssql": "^11.0.1"
+  }
+}
