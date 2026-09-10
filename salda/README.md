@@ -25,13 +25,18 @@ Soubory jsou v `salda/jhn-apps/` (kopie k přenesení do repozitáře jhn-apps):
   (stav Softr TPCLB/TPDATEC k 10. 9. 2026). Idempotentní; seed se vloží jen do prázdné tabulky.
 - `test/salda.test.js` – test aplikace s mockem `ctx` (bez databáze): `node test/salda.test.js`.
 
-### Nasazení (kroky, které je nutné udělat ručně)
-1. V jhn-apps přidat `apps/salda.js`, `sql/salda.sql`, `test/salda.test.js` a spustit `npm run gen`.
-2. Spustit `sql/salda.sql` na databázi **CLB1** (např. v SQL Studiu, spojení `clb1`) – založí tabulku a naplní ji.
-3. Do `.env` na serveru přidat do `CORS_ORIGINS` origin webu: `https://saldododavatele.netlify.app` (a případně
-   vlastní doménu). Pak `./deploy/vps-deploy.sh` (nebo `pm2 restart jhn-apps`).
-4. Ověřit: `https://95-216-201-2.sslip.io/api/apps/salda?token=salda-19a958511fd856d6&akce=tp-list`.
-5. Nahrát nový `index.html` do repozitáře `DATEC-saldododavatele` (větev `main` se nasazuje na Netlify).
+### Stav nasazení
+- Aplikace `salda` je sloučena do `main` repozitáře **jhn-apps** (soubory `apps/salda.js`, `sql/salda.sql`, `test/salda.test.js`).
+- Tabulka `dbo.Salda_TrvalePrikazy` v CLB1 je založená a naplněná (45 záznamů).
+- Nový dashboard je ve větvi `claude/sql-pres-jhn-apps` repozitáře **DATEC-saldododavatele** (větev `main` se nasazuje na Netlify).
+
+### Co zbývá (vyžaduje SSH na VPS, odsud nedostupné)
+1. Na Macu ve složce jhn-apps: `git pull` a `./deploy/vps-deploy.sh` (nahraje kód, `npm install`, `npm run gen`, restart pm2).
+2. Na VPS doplnit do `/opt/jhn-apps/.env` do `CORS_ORIGINS` origin `https://saldododavatele.netlify.app`
+   (čárkou za stávající hodnoty) a `pm2 restart jhn-apps --update-env`.
+3. Ověřit: `https://95-216-201-2.sslip.io/api/apps/salda?token=salda-19a958511fd856d6&akce=tp-list` vrátí JSON s 45 příkazy.
+4. Sloučit větev `claude/sql-pres-jhn-apps` do `main` v DATEC-saldododavatele – Netlify web se přepne na SQL.
+   (Do té doby by nový web ukazoval jen snapshot, proto je sloučení až posledním krokem.)
 
 Přístupová brána dashboardu (32znakový klíč) zůstává beze změny.
 
