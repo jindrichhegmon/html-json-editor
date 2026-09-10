@@ -283,6 +283,10 @@
       <div class="card">
         <h2 id="cmpTitle">Porovnání let — nákladové (5) a výnosové (6) účty</h2>
         <div class="table-tools">
+          <div class="seg" id="cmpModeSeg" role="group" aria-label="Zobrazení roků">
+            <button data-cmp="single" aria-pressed="false">Jen vybraný rok</button>
+            <button data-cmp="prev" aria-pressed="true">S předchozím rokem</button>
+          </div>
           <input type="search" id="cmpSearch" placeholder="Hledej část čísla účtu, popis, rok…" aria-label="Hledat účet, popis nebo rok">
           <button class="btn" id="cmpToggleAll">Rozbalit vše</button>
         </div>
@@ -382,6 +386,7 @@ const state = {
   view: "compare",
   compare: [],
   cmpSearch: "",
+  cmpMode: "prev",                    // "single" = jen vybraný rok, "prev" = vybraný a předchozí rok
   cmpOpen: {},
   entity: "clb",
   rangePreset: "year",
@@ -799,14 +804,18 @@ async function loadDetail(a) {
 const MONTH_HEAD = ["Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec"];
 const nf0 = new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 });
 
+/* řádky porovnání podle zvoleného zobrazení: jen vybraný rok, nebo vybraný + předchozí */
+function cmpRows() {
+  return state.cmpMode === "single" ? state.compare.filter(r => r.rok === state.rok) : state.compare;
+}
 function cmpYears() {
-  return [...new Set(state.compare.map(r => r.rok))].sort();
+  return [...new Set(cmpRows().map(r => r.rok))].sort();
 }
 function cmpTotals() {
   const years = cmpYears();
   const tot = {};   // klíč "5|rok" → pole 12
   for (const y of years) { tot["5|" + y] = new Array(12).fill(0); tot["6|" + y] = new Array(12).fill(0); }
-  for (const r of state.compare) {
+  for (const r of cmpRows()) {
     const t = tot[r.cls + "|" + r.rok];
     if (t) for (let i = 0; i < 12; i++) t[i] += r.m[i];
   }
@@ -825,8 +834,11 @@ function renderCompare() {
   const body = document.getElementById("cmpBody");
   head.replaceChildren(); body.replaceChildren();
   const years = cmpYears();
+  const single = state.cmpMode === "single";
+  const rowsAll = cmpRows();
   document.getElementById("cmpTitle").textContent =
-    "Porovnání let " + (state.rok - 1) + " – " + state.rok + " — nákladové (5) a výnosové (6) účty · " + ENTITY_LABEL[state.entity];
+    (single ? "Rok " + state.rok : "Porovnání let " + (state.rok - 1) + " – " + state.rok) +
+    " — nákladové (5) a výnosové (6) účty · " + ENTITY_LABEL[state.entity];
 
   /* hlavička */
   const trH = document.createElement("tr");
@@ -838,18 +850,20 @@ function renderCompare() {
   const thS = document.createElement("th"); thS.className = "num"; thS.textContent = "Součet"; trH.appendChild(thS);
   const yCur = years[years.length - 1];
   let lastM = 0;
-  for (const r of state.compare) if (r.rok === yCur) for (let j = 0; j < 12; j++) if (r.m[j]) lastM = Math.max(lastM, j + 1);
+  for (const r of rowsAll) if (r.rok === yCur) for (let j = 0; j < 12; j++) if (r.m[j]) lastM = Math.max(lastM, j + 1);
   const nowD = new Date();
   if (yCur === nowD.getFullYear()) lastM = Math.min(lastM || 12, Math.max(1, nowD.getMonth()));   /* rozpracovaný měsíc se nepočítá */
   if (!lastM) lastM = 12;
-  const thP = document.createElement("th"); thP.className = "num"; thP.textContent = "± % (1–" + lastM + ")";
-  thP.title = "Změna oproti měsícům 1–" + lastM + " předchozího roku (rozpracovaný měsíc se do porovnání nepočítá). U nákladů a výnosů porovnání objemu; u výsledku porovnání hodnoty. Zeleně = příznivý vývoj.";
-  trH.appendChild(thP);
+  if (!single) {
+    const thP = document.createElement("th"); thP.className = "num"; thP.textContent = "± % (1–" + lastM + ")";
+    thP.title = "Změna oproti měsícům 1–" + lastM + " předchozího roku (rozpracovaný měsíc se do porovnání nepočítá). U nákladů a výnosů porovnání objemu; u výsledku porovnání hodnoty. Zeleně = příznivý vývoj.";
+    trH.appendChild(thP);
+  }
   head.appendChild(trH);
 
-  if (!state.compare.length) {
+  if (!rowsAll.length) {
     const tr = document.createElement("tr"); const td = document.createElement("td");
-    td.colSpan = 17; td.className = "empty"; td.textContent = "Žádná data.";
+    td.colSpan = single ? 16 : 17; td.className = "empty"; td.textContent = "Za rok " + state.rok + " nejsou v Heliosu žádné zápisy na účtech tříd 5 a 6.";
     tr.appendChild(td); body.appendChild(tr);
     return;
   }
@@ -878,7 +892,7 @@ function renderCompare() {
 
   /* účty → dvojice let; skupiny (3 číslice) → účty */
   const accMap = new Map();
-  for (const r of state.compare) {
+  for (const r of rowsAll) {
     if (!accMap.has(r.u)) accMap.set(r.u, []);
     accMap.get(r.u).push(r);
   }
@@ -934,13 +948,15 @@ function renderCompare() {
     tdS.style.fontWeight = "600";
     tdS.textContent = nf0.format(Math.round(sum));
     tr.appendChild(tdS);
-    const tdP = document.createElement("td"); tdP.className = "num";
-    if (o.pct != null && isFinite(o.pct)) {
-      tdP.textContent = (o.pct > 0 ? "+" : "") + o.pct.toLocaleString("cs-CZ", { maximumFractionDigits: 1 }) + " %";
-      tdP.style.fontWeight = "600";
-      if (o.good != null) tdP.style.color = o.good ? "var(--good)" : "var(--bad)";
+    if (!single) {
+      const tdP = document.createElement("td"); tdP.className = "num";
+      if (o.pct != null && isFinite(o.pct)) {
+        tdP.textContent = (o.pct > 0 ? "+" : "") + o.pct.toLocaleString("cs-CZ", { maximumFractionDigits: 1 }) + " %";
+        tdP.style.fontWeight = "600";
+        if (o.good != null) tdP.style.color = o.good ? "var(--good)" : "var(--bad)";
+      }
+      tr.appendChild(tdP);
     }
-    tr.appendChild(tdP);
     body.appendChild(tr);
   };
 
@@ -984,7 +1000,7 @@ function renderCompare() {
   }
   if (body.children.length === 0) {
     const tr = document.createElement("tr"); const td = document.createElement("td");
-    td.colSpan = 17; td.className = "empty"; td.textContent = "Žádné řádky neodpovídají hledání.";
+    td.colSpan = single ? 16 : 17; td.className = "empty"; td.textContent = "Žádné řádky neodpovídají hledání.";
     tr.appendChild(td); body.appendChild(tr);
   }
 }
@@ -1014,6 +1030,11 @@ function wireSeg(id, attr, onPick) {
 }
 wireSeg("viewSeg", "view", v => { state.view = v; applyView(); });
 wireSeg("entitySeg", "entity", v => { state.entity = v; loadData(); });
+wireSeg("cmpModeSeg", "cmp", v => {
+  state.cmpMode = v;
+  try { localStorage.setItem("hlavniKniha.cmpMode", v); } catch (e) {}
+  renderCompare();
+});
 document.getElementById("cmpSearch").addEventListener("input", e => {
   state.cmpSearch = e.target.value; renderCompare();
 });
@@ -1061,6 +1082,11 @@ document.getElementById("refreshBtn").addEventListener("click", () => loadData()
 
 /* ================= start ================= */
 (function startApp() {
+  try {
+    const m = localStorage.getItem("hlavniKniha.cmpMode");
+    if (m === "single" || m === "prev") state.cmpMode = m;
+  } catch (e) {}
+  for (const b of document.querySelectorAll("#cmpModeSeg button")) b.setAttribute("aria-pressed", String(b.dataset.cmp === state.cmpMode));
   buildYearSelect();
   applyPreset("year");
   applyView();
