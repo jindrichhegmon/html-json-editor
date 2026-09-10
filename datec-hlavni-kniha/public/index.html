@@ -273,6 +273,7 @@
       <label>do <input type="date" id="toInput"></label>
     </span>
     <span class="spacer"></span>
+    <button class="btn" id="exportBtn" title="Uloží právě zobrazená data jako sešit Excelu (.xlsx)">Export do Excelu</button>
     <button class="btn" id="refreshBtn">Obnovit</button>
   </div>
 
@@ -836,6 +837,7 @@ function renderCompare() {
   const years = cmpYears();
   const single = state.cmpMode === "single";
   const rowsAll = cmpRows();
+  cmpExport.length = 0;
   document.getElementById("cmpTitle").textContent =
     (single ? "Rok " + state.rok : "Porovnání let " + (state.rok - 1) + " – " + state.rok) +
     " — nákladové (5) a výnosové (6) účty · " + ENTITY_LABEL[state.entity];
@@ -948,6 +950,7 @@ function renderCompare() {
     tdS.style.fontWeight = "600";
     tdS.textContent = nf0.format(Math.round(sum));
     tr.appendChild(tdS);
+    cmpExport.push({ u: r.u, name: r.name || "", rok: r.rok, m: r.m, sum, pct: o.pct, kind: o.total ? "celkem" : o.grp ? "skupina" : "ucet" });
     if (!single) {
       const tdP = document.createElement("td"); tdP.className = "num";
       if (o.pct != null && isFinite(o.pct)) {
@@ -1004,6 +1007,106 @@ function renderCompare() {
     tr.appendChild(td); body.appendChild(tr);
   }
 }
+
+/* ================= export do Excelu ================= */
+const cmpExport = [];   // řádky tabulky porovnání tak, jak byly naposledy vykresleny (plní renderCompare)
+const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = XLSX_URL; el.async = true;
+    el.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error("Knihovna pro Excel se nenačetla."));
+    el.onerror = () => reject(new Error("Knihovnu pro Excel se nepodařilo stáhnout – zkontrolujte připojení k internetu."));
+    document.head.appendChild(el);
+  });
+}
+const safeName = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+const r2 = v => Math.round((Number(v) || 0) * 100) / 100;
+
+/* listy k exportu podle právě zobrazeného pohledu: [{ name, rows (pole polí), widths }] */
+function exportSheets() {
+  const firma = ENTITY_LABEL[state.entity];
+  const sheets = [];
+  if (state.view === "compare") {
+    const single = state.cmpMode === "single";
+    /* vykreslit se všemi skupinami rozbalenými, aby export obsahoval i účty ve sbalených skupinách */
+    const savedOpen = state.cmpOpen;
+    state.cmpOpen = {};
+    for (const r of state.compare) state.cmpOpen[r.u.slice(0, 3)] = true;
+    renderCompare();
+    const rows = cmpExport.slice();
+    state.cmpOpen = savedOpen;
+    renderCompare();
+    const head = ["Účet", "Popis", "Rok", ...MONTH_HEAD, "Součet"];
+    if (!single) head.push("± % proti předchozímu roku");
+    const data = [head];
+    for (const r of rows) {
+      const line = [r.u, r.kind === "skupina" ? r.name : r.name, r.rok, ...r.m.map(r2), r2(r.sum)];
+      if (!single) line.push(r.pct != null && isFinite(r.pct) ? r2(r.pct) : "");
+      data.push(line);
+    }
+    sheets.push({ name: single ? "Rok " + state.rok : "Roky " + (state.rok - 1) + "-" + state.rok, rows: data,
+      widths: [12, 44, 6, ...MONTH_HEAD.map(() => 12), 13, 12] });
+    sheets.push({ name: "Info", rows: [
+      ["Hlavní kniha – " + firma + " (Helios)"],
+      [single ? "Rok " + state.rok : "Porovnání let " + (state.rok - 1) + " a " + state.rok + ", nákladové (5) a výnosové (6) účty"],
+      ["Hodnoty DAL − MD: náklady záporné, výnosy kladné, CELKEM = výsledek."],
+      ["± %: změna proti stejným měsícům předchozího roku (rozpracovaný měsíc se nepočítá)."],
+      ["Exportováno " + new Date().toLocaleString("cs-CZ")],
+    ], widths: [90] });
+    return { sheets, filename: "hlavni-kniha-" + safeName(firma) + "-" + (single ? state.rok : (state.rok - 1) + "-" + state.rok) + ".xlsx" };
+  }
+  /* průzkumník: účty (tak, jak jsou zobrazené), měsíce tříd 5/6 a rozbalené zápisy */
+  const acc = visibleAccounts();
+  const data = [["Účet", "Název účtu", "Třída", "MD", "DAL", "Zůstatek (MD − DAL)", "Zápisy"]];
+  for (const a of acc) data.push([a.u, a.name, a.cls, r2(a.md), r2(a.dal), r2(a.z), a.n]);
+  if (acc.length) data.push(["Celkem", acc.length + " účtů", "", r2(acc.reduce((s, a) => s + a.md, 0)), r2(acc.reduce((s, a) => s + a.dal, 0)), r2(acc.reduce((s, a) => s + a.z, 0)), acc.reduce((s, a) => s + a.n, 0)]);
+  sheets.push({ name: "Účty", rows: data, widths: [10, 48, 6, 16, 16, 20, 9] });
+  const mes = [["Měsíc", "Náklady (třída 5)", "Výnosy (třída 6)", "Výsledek"]];
+  for (const m of monthlySeries()) mes.push([m.mes, r2(m.naklady), r2(m.vynosy), r2(m.vynosy - m.naklady)]);
+  sheets.push({ name: "Měsíce", rows: mes, widths: [10, 18, 18, 16] });
+  if (state.expanded) {
+    const key = state.entity + "|" + state.expanded + "|" + state.from + "|" + state.to;
+    const zap = state.detailCache[key];
+    if (zap && zap.length) {
+      const d = [["Datum", "DUD", "Doklad", "Text", "Protistrana", "MD", "DAL"]];
+      for (const z of zap) d.push([z.d, z.dud, z.dok, z.txt, z.naz, r2(z.md), r2(z.dal)]);
+      sheets.push({ name: ("Zápisy " + state.expanded).slice(0, 31), rows: d, widths: [11, 6, 10, 44, 32, 14, 14] });
+    }
+  }
+  sheets.push({ name: "Info", rows: [
+    ["Hlavní kniha – " + firma + " (Helios)"],
+    ["Období " + fmtDate(state.from) + " – " + fmtDate(state.to)],
+    ["Účty: " + (state.classFilter === "all" ? "všechny třídy" : "třída " + state.classFilter) + (state.search.trim() ? ", hledání „" + state.search.trim() + "“" : "")],
+    ["Exportováno " + new Date().toLocaleString("cs-CZ")],
+  ], widths: [90] });
+  return { sheets, filename: "hlavni-kniha-" + safeName(firma) + "-" + state.from + "_" + state.to + ".xlsx" };
+}
+async function exportExcel() {
+  const btn = document.getElementById("exportBtn");
+  if (!state.accounts.length && !state.compare.length) { showNotice("Není co exportovat – nejdřív načtěte data."); return; }
+  btn.disabled = true; const label = btn.textContent; btn.textContent = "Připravuji…";
+  try {
+    const XLSX = await loadXlsx();
+    const { sheets, filename } = exportSheets();
+    const wb = XLSX.utils.book_new();
+    for (const sh of sheets) {
+      const ws = XLSX.utils.aoa_to_sheet(sh.rows);
+      ws["!cols"] = sh.widths.map(w => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, sh.name.replace(/[\\/?*\[\]:]/g, " ").slice(0, 31));
+    }
+    XLSX.writeFile(wb, filename);
+  } catch (e) {
+    showNotice("Export do Excelu se nezdařil: " + (e && e.message ? e.message : e));
+  } finally { btn.disabled = false; btn.textContent = label; }
+}
+function showNotice(text) {
+  const n = document.getElementById("notice");
+  n.replaceChildren(document.createTextNode(text));
+  n.classList.remove("hidden");
+}
+document.getElementById("exportBtn").addEventListener("click", exportExcel);
 
 /* ================= render vše ================= */
 function render() {
